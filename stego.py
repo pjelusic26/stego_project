@@ -1,5 +1,6 @@
 ### Stego project from scratch ###
 
+from os import stat
 import numpy as np
 from PIL import Image
 from scipy import fftpack
@@ -29,6 +30,13 @@ class stego_block:
         # Read image as Numpy array
         img_orig = np.array(Image.open(filepath))
         return img_orig
+
+    @staticmethod
+    def image_resize(img, dimension):
+
+        if not img.shape == (dimension, dimension):
+            img = trs.resize(img, (dimension, dimension), preserve_range = True)
+        return img
 
     # 2. Choose K channel
     @staticmethod
@@ -194,25 +202,10 @@ class stego_block:
     # 5. Apply Fourier transform
 
     # 6. Search for watermarks
-    def decode_data(img, length, frequency):
+    def decode_data(self, img, length, frequency):
 
-        if not img.shape == (512, 512):
-            img = trs.resize(img, (512, 512))
-
-        magnitude, phase = stego_block.image_to_fourier(img)
-        mark = stego_block.key_generator(length)
-        radius = stego_block.vector_radius(img, frequency)
-
-        value_array = np.zeros(64)
-        counter = 0
-
-        for ind in range(int(radius - 32), int(radius + 32)):
-            vec = stego_block.mark_extract(magnitude, ind)
-            mark_reshaped = stego_block.mark_generate(mark, magnitude, ind)
-            value_array[counter] = stego_block.mark_corr(mark_reshaped, vec)
-            counter += 1
-
-        return value_array
+        decode_values = self.mark_corr_array(img, length, frequency)
+        return np.amax(decode_values)
 
     # 7. Grubbs' test
     def grubbs_test(decode_values, alpha):
@@ -226,6 +219,7 @@ class stego_block:
     ### BRIDGE METHODS FOR EMBEDDING ###
     ### BRIDGE METHODS FOR EMBEDDING ###
 
+    @staticmethod
     def vector_radius(img, frequency):
 
         if frequency == 'LOW':
@@ -238,12 +232,12 @@ class stego_block:
             raise AttributeError("Unknown frequency. Please use LOW, MEDIUM or HIGH")
         return radius
 
-    def key_generator(length):
+    def key_generator(self, length):
 
         key = np.random.randint(2, size = (length, 1)).astype(np.float32)
         return key
 
-    def image_to_fourier(img):
+    def image_to_fourier(self, img):
 
         skimage.img_as_float64(img)
         fft2 = fftpack.fft2(img)
@@ -251,7 +245,7 @@ class stego_block:
         phase = np.angle(fft2)
         return magnitude, phase
 
-    def image_to_spatial(magnitude, phase):
+    def image_to_spatial(self, magnitude, phase):
 
         img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
         img_spatial = np.real(img_spatial)
@@ -261,6 +255,7 @@ class stego_block:
     ### BRIDGE METHOD S FOR DECODING ###
     ### BRIDGE METHOD S FOR DECODING ###
 
+    @staticmethod
     def mark_extract(img, radius):
 
         step = math.pi / (2 * math.asin(1 / (2*radius)))
@@ -279,6 +274,7 @@ class stego_block:
             vec[ind, 0] = np.amax(mask)
         return vec
 
+    @staticmethod
     def mark_generate(mark, img, radius = 128):
 
         mask = np.zeros(img.shape)
@@ -293,6 +289,7 @@ class stego_block:
             mask[x1, y1] = mark[ind]
         return stego_block.mark_extract(mask, radius)
 
+    @staticmethod
     def mark_corr(mark, vector):
 
         mark = mark - np.mean(mark)
@@ -308,3 +305,20 @@ class stego_block:
             max_corr[counter] = np.corrcoef(mark[:, 0], vector_2d[:, 0])[0][1]
             counter += 1
         return np.amax(max_corr)
+
+    def mark_corr_array(self, img, length, frequency):
+
+        magnitude, phase = self.image_to_fourier(img)
+        mark = self.key_generator(length)
+        radius = stego_block.vector_radius(img, frequency)
+
+        value_array = np.zeros(64)
+        counter = 0
+
+        for ind in range(int(radius - 32), int(radius + 32)):
+            vec = stego_block.mark_extract(magnitude, ind)
+            mark_reshaped = stego_block.mark_generate(mark, magnitude, ind)
+            value_array[counter] = stego_block.mark_corr(mark_reshaped, vec)
+            counter += 1
+
+        return value_array
