@@ -14,11 +14,16 @@ import cv2
 
 class stego_block:
 
+    def __init__(self, seed):
+        self.seed = seed
+        pass
+
     ### Encoder ###
     ### Encoder ###
     ### Encoder ###
 
     # 1. Read cmyk image
+    @staticmethod
     def image_read(filepath):
 
         # Read image as Numpy array
@@ -26,6 +31,7 @@ class stego_block:
         return img_orig
 
     # 2. Choose K channel
+    @staticmethod
     def extract_channel(img_orig):
 
         # Checking if image is grayscale or color
@@ -41,6 +47,7 @@ class stego_block:
         else:
             raise AttributeError("Please provide grayscale, RGB or CMYK image.")
 
+    @staticmethod
     # 3. Split image into blocks
     def image_to_blocks(img_channel, block_number):
         
@@ -67,12 +74,13 @@ class stego_block:
 
         return blocks_output
 
+    # TODO
     # 4. Test activity levels for each block
-    def activity_test(img_channel_blocks, activity_threshold):
-        return activity_map
+    # def activity_test(img_channel_blocks, activity_threshold):
+    #     return activity_map
 
     # 5. Embed data
-    def embed_data(img, vector_length, frequency, implementation_strength):
+    def embed_data(self, img, vector_length, frequency, implementation_strength):
 
         # Extract channel from image
         img_channel = stego_block.extract_channel(img)
@@ -81,10 +89,10 @@ class stego_block:
         radius = stego_block.vector_radius(img, frequency)
 
         # Generate mark using the secret key (seed)
-        data_mark = stego_block.key_generator(vector_length)
+        data_mark = self.key_generator(vector_length)
 
         # Transform the input image into the frequency domain
-        magnitude, phase = stego_block.image_to_fourier(img_channel)
+        magnitude, phase = self.image_to_fourier(img_channel)
 
         # Define the data mask (where the data will be embedded within the frequency domain)
         mark_mask = np.zeros(img_channel.shape)
@@ -114,7 +122,7 @@ class stego_block:
         magnitude_m = magnitude + implementation_strength*mark_mask
 
         # Transforming the image back to spatial domain
-        img_channel_marked = stego_block.image_to_spatial(magnitude_m, phase)
+        img_channel_marked = self.image_to_spatial(magnitude_m, phase)
 
         #TODO
         if np.amax(img_channel) > 1:
@@ -123,11 +131,13 @@ class stego_block:
         # Return image as uint8
         return skimage.img_as_ubyte(img_channel_marked)
 
+    # TODO
     # 8. Apply GCR Masking
-    def gcr_masking(img_marked, gcr_method, color_profile):
-        return img_masked
+    # def gcr_masking(img_marked, gcr_method, color_profile):
+    #    return img_masked
 
     # 9. Merge blocks
+    @staticmethod
     def image_merge_blocks(img_masked, block_number):
 
         block_height = int(img_masked.shape[0])
@@ -154,6 +164,7 @@ class stego_block:
         return img_merged
 
     # 10. Merge marked K channel with original C M Y
+    @staticmethod
     def image_merge_channels(img_orig, img_merged):
 
         # Checking if image is grayscale or color
@@ -181,6 +192,7 @@ class stego_block:
     # 3. Choose K channels
     # 4. Activity test
     # 5. Apply Fourier transform
+
     # 6. Search for watermarks
     def decode_data(img, length, frequency):
 
@@ -200,7 +212,7 @@ class stego_block:
             value_array[counter] = stego_block.mark_corr(mark_reshaped, vec)
             counter += 1
 
-        return np.amax(value_array)
+        return value_array
 
     # 7. Grubbs' test
     def grubbs_test(decode_values, alpha):
