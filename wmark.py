@@ -33,9 +33,9 @@ import multiprocessing
 from multiprocessing import Queue as PQueue
 import queue
 import pandas as pd
-import wmgcr
+# import wmgcr
 from outliers import smirnov_grubbs as grubbs
-import gcrpywrap as gw
+# import gcrpywrap as gw
 import ctypes
 from pathlib import Path
 

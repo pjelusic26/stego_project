@@ -48,7 +48,7 @@ class stego_block:
         elif len(img_orig.shape) == 3:
             # Checking if color image is CMYK or RGB
             if img_orig.shape[-1] == 3:
-                img_orig = color.rgb2ycbcr(img)
+                img_orig = color.rgb2ycbcr(img_orig)
                 return img_orig[:, :, 0]
             elif img_orig.shape[-1] == 4:
                 return img_orig[:, :, -1]
@@ -88,13 +88,10 @@ class stego_block:
     #     return activity_map
 
     # 5. Embed data
-    def embed_data(self, img, vector_length, frequency, implementation_strength):
-
-        # Extract channel from image
-        img_channel = stego_block.extract_channel(img)
+    def embed_data(self, img_channel, vector_length, frequency, implementation_strength):
 
         # Get radius from provided frequency range
-        radius = stego_block.vector_radius(img, frequency)
+        radius = stego_block.vector_radius(img_channel, frequency)
 
         # Generate mark using the secret key (seed)
         data_mark = self.key_generator(vector_length)
@@ -189,8 +186,6 @@ class stego_block:
         else:
             raise AttributeError("Unknown image format.")
 
-        return img_output
-
     ### Decoder ###
     ### Decoder ###
     ### Decoder ###
@@ -251,9 +246,9 @@ class stego_block:
         img_spatial = np.real(img_spatial)
         return img_spatial
     
-    ### BRIDGE METHOD S FOR DECODING ###
-    ### BRIDGE METHOD S FOR DECODING ###
-    ### BRIDGE METHOD S FOR DECODING ###
+    ### BRIDGE METHODS FOR DECODING ###
+    ### BRIDGE METHODS FOR DECODING ###
+    ### BRIDGE METHODS FOR DECODING ###
 
     @staticmethod
     def mark_extract(img, radius):
@@ -270,7 +265,8 @@ class stego_block:
 
             for  ind_m_x in range(3):
                 for ind_m_y in range(3):
-                    mask[ind_m_x, ind_m_y] = img[(x1-1 + ind_m_x), (y1-1 + ind_m_y)]
+                    mask[ind_m_x, ind_m_y] = img[(
+                        x1-1 + ind_m_x), (y1-1 + ind_m_y)]
             vec[ind, 0] = np.amax(mask)
         return vec
 
