@@ -5,47 +5,48 @@ import numpy as np
 from PIL import Image
 
 # Initializing the class with a seed
-stego8 = stego_block(5)
-stegoAnte = WaterMark(5)
+# stego8 = stego_block(8)
+# stego12 = stego_block(12)
+stego8 = stego_block(8, 12)
 
-print("Reading image...")
+
+# New line
+nl = "\n"
+
 # Reading image
-img = stego_block.image_read('/Users/zgebac/Desktop/grf-projekt/python/stego_project/img_greyscale.png')
-print(img.dtype)
+img = stego_block.image_read('/home/zgebac26/python/stego_project/img_orig.tif')
+print(f"Read {img.shape} image as {img.dtype}...")
 
-print("Extracting channel...")
+# Resize image
+img = stego_block.image_resize(img, 2048)
+print(f"Resize image to {img.shape} as {img.dtype}...")
+
 # Extracting channel
 channel = stego_block.extract_channel(img)
-print(channel.dtype)
+print(f"Extract {channel.shape} channel as {channel.dtype}...")
 
-print("Embedding data...")
+# Dividing image to blocks
+blocks = stego_block.image_to_blocks(channel, 4)
+print(f"Divide channel to {blocks.shape} blocks...")
+
 # Embedding data
-marked = stego8.embed_data(channel, vector_length = 200, frequency = 'MEDIUM', implementation_strength = 1000)
-print(marked.dtype)
+marked = stego8.embed_data_to_blocks(image_blocks = blocks, length = 200, frequency = 'MEDIUM', factor = 5000)
+print(f"Mark blocks {marked.shape} as {marked.dtype}...")
 
-print("Saving image...")
-# Saving image
-imgObject = Image.fromarray(marked.astype('uint8'), 'L')
-imgName = '/Users/zgebac/Desktop/grf-projekt/python/stego_project/img_marked_channel_pbj.jpg'
-imgObject.save(imgName)
-print("Done!")
-
-print("Merging channels...")
-# Merging channels
-merged = stego_block.image_merge_channels(img, marked)
-print(merged.dtype)
-
-print("Decoding data...")
 # Decoding data
-correct = stego8.decode_data(marked, length = 200, frequency = 'MEDIUM')
-wrong = stegoAnte.decodeMark(merged, metric = 'CORR')
+values = stego8.decode_data_from_blocks(marked, length = 200, frequency = 'MEDIUM')
+print(f"Decode values for blocks are:{nl}{values}")
 
-print(correct)
-print(wrong)
+# Merging blocks
+blocks = stego_block.image_merge_blocks(marked, 4)
+print(f"Merging blocks {blocks.shape} as {blocks.dtype}...")
 
-print("Saving image...")
+# Merging channels
+merged = stego_block.image_merge_channels(img, blocks)
+print(f"Merge {merged.shape} image channels as {merged.dtype}...")
+
 # Saving image
-imgObject = Image.fromarray(merged.astype('uint8'), 'L')
-imgName = '/Users/zgebac/Desktop/grf-projekt/python/stego_project/img_marked_pbj.jpg'
+imgObject = Image.fromarray(merged.astype('uint8'), 'CMYK')
+imgName = '/home/zgebac26/python/stego_project/img_marked_pbj.jpg'
 imgObject.save(imgName)
-print("Done!")
+print(f"Save merged image {merged.shape}")

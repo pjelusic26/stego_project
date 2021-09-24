@@ -15,13 +15,27 @@ import cv2
 
 class stego_block:
 
-    def __init__(self, seed):
-        self.seed = seed
+    def __init__(self, seed_1, seed_2):
+        self.seed_1 = seed_1
+        self.seed_2 = seed_2
         pass
 
     ### Encoder ###
     ### Encoder ###
     ### Encoder ###
+
+    def generate_key_1(self, length):
+
+        # Using the self object, generating a seed
+        np.random.seed(self.seed_1)
+        key_1 = np.random.randint(2, size = (length, 1)).astype(np.float32)
+        return key_1
+
+    def generate_key_2(self, length):
+
+        np.random.seed(self.seed_2)
+        key_2 = np.random.randint(2, size = (length, 1)).astype(np.float32)
+        return key_2
 
     # 1. Read cmyk image
     @staticmethod
@@ -34,7 +48,9 @@ class stego_block:
     @staticmethod
     def image_resize(img, dimension):
 
+        # Resize image to a dimension of choice
         if not img.shape == (dimension, dimension):
+            # Preserve range in order to keep the same format
             img = trs.resize(img, (dimension, dimension), preserve_range = True)
         return img
 
@@ -88,29 +104,34 @@ class stego_block:
     #     return activity_map
 
     # 5. Embed data
-    def embed_data(self, img_channel, vector_length, frequency, implementation_strength):
+    def embed_data(self, key_choice, img_channel, length, frequency, factor):
 
         # Get radius from provided frequency range
         radius = stego_block.vector_radius(img_channel, frequency)
 
         # Generate mark using the secret key (seed)
-        data_mark = self.key_generator(vector_length)
+        if key_choice == 'A':
+            data_mark = self.generate_key_1(length)
+        elif key_choice == 'B':
+            data_mark = self.generate_key_2(length)
+        else:
+            raise AttributeError("Please provide 'A' or 'B' as key choice.")
 
         # Transform the input image into the frequency domain
         magnitude, phase = self.image_to_fourier(img_channel)
 
-        # Define the data mask (where the data will be embedded within the frequency domain)
+        # Define the data mask (area where the data will be embedded)
         mark_mask = np.zeros(img_channel.shape)
         mask_shape = (3, 3)
         mask_up = np.zeros(mask_shape)
         mask_down = np.zeros(mask_shape)
 
         # Defining key points on the circular-shaped vector
-        for ind in range(vector_length):
-            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/vector_length)))
-            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/vector_length)))
-            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/vector_length+math.pi)))
-            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/vector_length+math.pi)))
+        for ind in range(length):
+            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
+            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
+            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
+            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
 
             # Mirroring the circular-shaped vector
             # Without this, the vector would only be half of a circle
@@ -124,7 +145,7 @@ class stego_block:
             mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
 
         # Applying the additive mask, controlled by the implementation strength
-        magnitude_m = magnitude + implementation_strength*mark_mask
+        magnitude_m = magnitude + factor*mark_mask
 
         # Transforming the image back to spatial domain
         img_channel_marked = self.image_to_spatial(magnitude_m, phase)
@@ -135,6 +156,60 @@ class stego_block:
 
         # Return image as uint8
         return skimage.img_as_ubyte(img_channel_marked)
+
+    def embed_data_to_blocks(self, image_blocks, length, frequency, factor):
+
+        blocks_marked = np.copy(image_blocks)
+        embed_place = 0
+
+        while embed_place < int(blocks_marked.shape[-1]):
+
+            blocks_marked[:, :, embed_place] = self.embed_data(
+                key_choice = 'A',
+                img_channel = image_blocks[:, :, embed_place],
+                length = length,
+                frequency = frequency,
+                factor = factor
+            )
+            embed_place += 1
+
+            blocks_marked[:, :, embed_place] = self.embed_data(
+                key_choice = 'B',
+                img_channel = image_blocks[:, :, embed_place],
+                length = length,
+                frequency = frequency,
+                factor = factor
+            )
+            
+            embed_place += 1
+
+        return blocks_marked
+
+    def embed_data_to_even(self, image_blocks, vector_length, frequency, implementation_strength):
+
+        blocks_marked = np.copy(image_blocks)
+        counter = 0
+
+        while counter < int(blocks_marked.shape[-1]):
+        # for i in range(blocks_marked.shape[-1]):
+            blocks_marked[:, :, counter] = self.embed_data(
+                image_blocks[:, :, counter], vector_length, frequency, implementation_strength)
+            counter += 2
+
+        return blocks_marked
+
+    def embed_data_to_odd(self, image_blocks, vector_length, frequency, implementation_strength):
+
+        blocks_marked = np.copy(image_blocks)
+        counter = 1
+
+        while counter < int(blocks_marked.shape[-1]):
+        # for i in range(blocks_marked.shape[-1]):
+            blocks_marked[:, :, counter] = self.embed_data(
+                image_blocks[:, :, counter], vector_length, frequency, implementation_strength)
+            counter += 2
+
+        return blocks_marked
 
     # TODO
     # 8. Apply GCR Masking
@@ -197,10 +272,35 @@ class stego_block:
     # 5. Apply Fourier transform
 
     # 6. Search for watermarks
-    def decode_data(self, img, length, frequency):
+    def decode_data(self, key_choice, img, length, frequency):
 
-        decode_values = self.mark_corr_array(img, length, frequency)
+        decode_values = self.mark_corr_array(key_choice, img, length, frequency)
         return np.amax(decode_values)
+
+    def decode_data_from_blocks(self, blocks, length, frequency):
+
+        decode_values = np.zeros((blocks.shape[-1], 1))
+        counter = 0
+
+        while counter < int(blocks.shape[-1]):
+        # for i in range(blocks.shape[-1]):
+            decode_values[counter] = self.decode_data(
+                key_choice = 'A',
+                img = blocks[:, :, counter],
+                length = length,
+                frequency = frequency
+            )
+            counter += 1
+
+            decode_values[counter] = self.decode_data(
+                key_choice = 'B',
+                img = blocks[:, :, counter],
+                length = length,
+                frequency = frequency
+            )
+            counter += 1
+
+        return decode_values
 
     # 7. Grubbs' test
     def grubbs_test(decode_values, alpha):
@@ -226,22 +326,24 @@ class stego_block:
         else:
             raise AttributeError("Unknown frequency. Please use LOW, MEDIUM or HIGH")
         return radius
-
-    def key_generator(self, length):
-
-        key = np.random.randint(2, size = (length, 1)).astype(np.float32)
-        return key
-
+        
     def image_to_fourier(self, img):
 
+        # Transforming image to float
         skimage.img_as_float64(img)
+        
+        # Transforming image from spatial to frequency domain
+        # Fourier Transform is complex, creating both magnitude and phase
         fft2 = fftpack.fft2(img)
         magnitude = fftpack.fftshift(np.absolute(fft2))
         phase = np.angle(fft2)
+
+        # Return magnitude and phase as separate objects
         return magnitude, phase
 
     def image_to_spatial(self, magnitude, phase):
 
+        # Using the magnitude and phase to return image to spatial domain
         img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
         img_spatial = np.real(img_spatial)
         return img_spatial
@@ -302,10 +404,17 @@ class stego_block:
             counter += 1
         return np.amax(max_corr)
 
-    def mark_corr_array(self, img, length, frequency):
+    def mark_corr_array(self, key_choice, img, length, frequency):
 
         magnitude, phase = self.image_to_fourier(img)
-        mark = self.key_generator(length)
+
+        if key_choice == 'A':
+            mark = self.generate_key_1(length)
+        elif key_choice == 'B':
+            mark = self.generate_key_2(length)
+        else:
+            raise AttributeError("Please provide 'A' or 'B' as key choice.")
+
         radius = stego_block.vector_radius(img, frequency)
 
         value_array = np.zeros(64)
