@@ -1,28 +1,31 @@
 from stego import stego_block
 
 import numpy as np
+from PIL import Image
 
 # Initializing the class with a seed
-stego8 = stego_block(8)
+stego8 = stego_block(seed_pattern = 2, seed_message = 4, seed_permutation = 8)
 
-print("Reading image...")
+# New line
+nl = "\n"
+
+# Generating permutation
+permutation = stego8.generate_permutation(16)
+
 # Reading image
-img = stego_block.image_read('/home/zgebac26/python/stego_project/image_color.jpg')
+img = stego_block.image_read('/home/zgebac26/python/stego_project/img_marked_pbj.jpg')
 
-print("Extracting channel...")
 # Extracting channel
 channel = stego_block.extract_channel(img)
 
-print("Splitting image to blocks...")
 # Dividing image to blocks
-blocks = stego_block.image_to_blocks(channel, 2)
+blocks = stego_block.image_to_blocks(channel, 4)
 
-print("Decoding data from blocks...")
 # Decoding data from each block separately
-blocks_marked = np.zeros((4, 1))
-counter = 0
-for i in range(blocks.shape[-1]):
-    blocks_marked[counter] = stego8.decode_data(blocks[:, :, counter], length = 200, frequency = 'MEDIUM')
-    counter += 1
-
-print(blocks_marked) 
+decoded_values, decoded_message = stego8.decode_data_pattern(
+    permutation,
+    blocks,
+    length = 200, 
+    frequency = 'MEDIUM', 
+    alpha = 0.001)
+print(f"Decoded message:{nl}{decoded_message}")

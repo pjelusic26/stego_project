@@ -4,44 +4,48 @@ import numpy as np
 from PIL import Image
 
 # Initializing the class with a seed
-stego8 = stego_block(8)
+stego8 = stego_block(seed_pattern = 2, seed_message = 4, seed_permutation = 8)
+
+# New line
+nl = "\n"
+
+# Generating message
+message = stego8.generate_message(6)
+print(f"Encoder message:{nl}{message}")
+
+# Generating permutation
+permutation = stego8.generate_permutation(16)
+print(f"Encoder permutation:{nl}{permutation}")
 
 # Reading image
-print("Reading image...")
-image = stego_block.image_read('/home/zgebac26/python/stego_project/test_img.tif')
+img = stego_block.image_read('/home/zgebac26/python/stego_project/test_img.jpg')
 
-# Resizing image
-print("Resizing image...")
-image = stego_block.image_resize(image, 1024)
+# Resize image
+img = stego_block.image_resize(img, 2048)
 
-print("Extracting channel...")
 # Extracting channel
-channel = stego_block.extract_channel(image)
+channel = stego_block.extract_channel(img)
 
-print("Splitting image to blocks...")
 # Dividing image to blocks
-blocks = stego_block.image_to_blocks(channel, 2)
+blocks = stego_block.image_to_blocks(channel, 4)
 
-print("Embedding data to blocks...")
-# Embedding data into each block separately
-blocks_marked = np.copy(blocks)
-counter = 0
-for i in range(blocks.shape[-1]):
-    blocks_marked[:, :, counter] = stego8.embed_data(blocks[:, :, counter], 
-        vector_length = 200, frequency = 'MEDIUM', implementation_strength = 2000)
-    counter += 1
+# Embedding data to blocks
+marked = stego8.embed_pattern_to_blocks(message, permutation, blocks, length = 200, frequency = 'MEDIUM', factor = 20000)
 
-print("Merging blocks...")
 # Merging blocks
-merged = stego_block.image_merge_blocks(blocks_marked, 2)
+blocks = stego_block.image_merge_blocks(marked, 4)
 
-print("Merging channels...")
-# Merging color channels
-color = stego_block.image_merge_channels(image, merged)
-
-print("Saving image...")
 # Saving image
-imgObject = Image.fromarray(color.astype('uint8'), 'CMYK')
-imgName = '/home/zgebac26/python/stego_project/image_color.jpg'
+imgObject = Image.fromarray(blocks.astype('uint8'), 'L')
+imgName = '/home/zgebac26/python/stego_project/img_channel_marked_pbj.jpg'
+imgObject.save(imgName)
+print("Done!")
+
+# Merging channels
+merged = stego_block.image_merge_channels(img, blocks)
+
+# Saving image
+imgObject = Image.fromarray(merged.astype('uint8'), 'CMYK')
+imgName = '/home/zgebac26/python/stego_project/img_marked_pbj.jpg'
 imgObject.save(imgName)
 print("Done!")

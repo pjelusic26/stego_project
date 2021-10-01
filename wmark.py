@@ -544,7 +544,7 @@ class WaterMark:
             if counter >= 15:
                 break
             # Defining the midpoint between l and r
-            mid = l + (r - l) / 2
+            mid = l + (r - l) / 2 
 
             # Setting Impact Factor value to midpoint of tuple
             impactFactor = mid

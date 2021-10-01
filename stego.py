@@ -5,39 +5,70 @@ import numpy as np
 from PIL import Image
 from scipy import fftpack
 import skimage
+import skimage.metrics as msr
 import skimage.color as color
 import skimage.transform as trs
 import math
 import cv2
+from outliers import smirnov_grubbs as grubbs
 
 ### Well, not exactly from scratch ###
 # from wmark import WaterMark
 
+# TODO
+# Seed generator for permutation of blocks
+# Encoder embeds data into first X permuted blocks
+# Encoder has a list of possible patterns
+# Decoder does not need to know the order of embedding
+# Decoder only needs to know possible patterns
+# Decoder checks each block for each possible pattern (until the pattern is found)
+
+
 class stego_block:
 
-    def __init__(self, seed_1, seed_2):
-        self.seed_1 = seed_1
-        self.seed_2 = seed_2
+    def __init__(self, seed_pattern, seed_message, seed_permutation):
+        self.seed_pattern = seed_pattern
+        self.seed_message = seed_message
+        self.seed_permutation = seed_permutation
         pass
 
-    ### Encoder ###
-    ### Encoder ###
-    ### Encoder ###
-
-    def generate_key_1(self, length):
+    def generate_pattern(self, length):
 
         # Using the self object, generating a seed
-        np.random.seed(self.seed_1)
-        key_1 = np.random.randint(2, size = (length, 1)).astype(np.float32)
-        return key_1
+        np.random.seed(self.seed_pattern)
+        pattern_a = np.random.randint(2, size = (length, 1)).astype(np.float32)
+        pattern_b = np.random.randint(2, size = (length, 1)).astype(np.float32)
 
-    def generate_key_2(self, length):
+        return pattern_a, pattern_b
 
-        np.random.seed(self.seed_2)
-        key_2 = np.random.randint(2, size = (length, 1)).astype(np.float32)
-        return key_2
+    def generate_message(self, bit_amount):
 
-    # 1. Read cmyk image
+        np.random.seed(self.seed_message)
+        message = np.random.randint(2, size = (bit_amount, 1))
+
+        letter_message = []
+        for i in range(bit_amount):
+
+            if message[i] == 0:
+                letter_message.append('A')
+            elif message[i] == 1:
+                letter_message.append('B')
+            else:
+                raise AttributeError("Wrong message input.")
+
+        return letter_message
+
+    def generate_permutation(self, block_number):
+
+        blocks_ordered = np.arange(block_number)
+
+        np.random.seed(self.seed_permutation)
+        return np.random.permutation(blocks_ordered)
+
+    ### Encoder ###
+    ### Encoder ###
+    ### Encoder ###
+
     @staticmethod
     def image_read(filepath):
 
@@ -54,7 +85,6 @@ class stego_block:
             img = trs.resize(img, (dimension, dimension), preserve_range = True)
         return img
 
-    # 2. Choose K channel
     @staticmethod
     def extract_channel(img_orig):
 
@@ -72,7 +102,6 @@ class stego_block:
             raise AttributeError("Please provide grayscale, RGB or CMYK image.")
 
     @staticmethod
-    # 3. Split image into blocks
     def image_to_blocks(img_channel, block_number):
         
         # Defining block dimensions
@@ -99,23 +128,21 @@ class stego_block:
         return blocks_output
 
     # TODO
-    # 4. Test activity levels for each block
-    # def activity_test(img_channel_blocks, activity_threshold):
-    #     return activity_map
+    def activity_test(img_channel_blocks, activity_threshold):
+        return activity_map
 
-    # 5. Embed data
-    def embed_data(self, key_choice, img_channel, length, frequency, factor):
+    def embed_data(self, message, img_channel, length, frequency, factor):
 
         # Get radius from provided frequency range
         radius = stego_block.vector_radius(img_channel, frequency)
 
         # Generate mark using the secret key (seed)
-        if key_choice == 'A':
-            data_mark = self.generate_key_1(length)
-        elif key_choice == 'B':
-            data_mark = self.generate_key_2(length)
+        if message == 'A':
+            data_mark = self.generate_pattern(length)[0]
+        elif message == 'B':
+            data_mark = self.generate_pattern(length)[1]
         else:
-            raise AttributeError("Please provide 'A' or 'B' as key choice.")
+            raise AttributeError("Unknown message. Encoder is confused.")
 
         # Transform the input image into the frequency domain
         magnitude, phase = self.image_to_fourier(img_channel)
@@ -157,57 +184,28 @@ class stego_block:
         # Return image as uint8
         return skimage.img_as_ubyte(img_channel_marked)
 
-    def embed_data_to_blocks(self, image_blocks, length, frequency, factor):
+    def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency, factor):
 
         blocks_marked = np.copy(image_blocks)
-        embed_place = 0
+        
+        for i in range(len(message)):
 
-        while embed_place < int(blocks_marked.shape[-1]):
+            factor = self.implementation_strength(
+                message = message[i],
+                img_block = image_blocks[:, :, permutation[i]],
+                psnr_range = (38, 42),
+                length = 200,
+                frequency = 'MEDIUM'
+            )
 
-            blocks_marked[:, :, embed_place] = self.embed_data(
-                key_choice = 'A',
-                img_channel = image_blocks[:, :, embed_place],
+            blocks_marked[:, :, permutation[i]] = self.embed_data(
+                message = message[i],
+                img_channel = image_blocks[:, :, permutation[i]],
                 length = length,
                 frequency = frequency,
-                factor = factor
+                factor = factor[0]
             )
-            embed_place += 1
-
-            blocks_marked[:, :, embed_place] = self.embed_data(
-                key_choice = 'B',
-                img_channel = image_blocks[:, :, embed_place],
-                length = length,
-                frequency = frequency,
-                factor = factor
-            )
-            
-            embed_place += 1
-
-        return blocks_marked
-
-    def embed_data_to_even(self, image_blocks, vector_length, frequency, implementation_strength):
-
-        blocks_marked = np.copy(image_blocks)
-        counter = 0
-
-        while counter < int(blocks_marked.shape[-1]):
-        # for i in range(blocks_marked.shape[-1]):
-            blocks_marked[:, :, counter] = self.embed_data(
-                image_blocks[:, :, counter], vector_length, frequency, implementation_strength)
-            counter += 2
-
-        return blocks_marked
-
-    def embed_data_to_odd(self, image_blocks, vector_length, frequency, implementation_strength):
-
-        blocks_marked = np.copy(image_blocks)
-        counter = 1
-
-        while counter < int(blocks_marked.shape[-1]):
-        # for i in range(blocks_marked.shape[-1]):
-            blocks_marked[:, :, counter] = self.embed_data(
-                image_blocks[:, :, counter], vector_length, frequency, implementation_strength)
-            counter += 2
+            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {factor[1]}")
 
         return blocks_marked
 
@@ -272,43 +270,71 @@ class stego_block:
     # 5. Apply Fourier transform
 
     # 6. Search for watermarks
-    def decode_data(self, key_choice, img, length, frequency):
+    # def detect_pattern_max(self, pattern, img, length, frequency):
 
-        decode_values = self.mark_corr_array(key_choice, img, length, frequency)
-        return np.amax(decode_values)
+    #     decode_values = self.detect_pattern(pattern, img, length, frequency)
+    #     return np.amax(decode_values)
 
-    def decode_data_from_blocks(self, blocks, length, frequency):
+    def decode_data_pattern(self, permutation, image_blocks, length, frequency, alpha):
 
-        decode_values = np.zeros((blocks.shape[-1], 1))
-        counter = 0
+        decoded_values = np.zeros((image_blocks.shape[-1], 1))
+        decoded_message = []
+        
+        for i in range(image_blocks.shape[-1]):
 
-        while counter < int(blocks.shape[-1]):
-        # for i in range(blocks.shape[-1]):
-            decode_values[counter] = self.decode_data(
-                key_choice = 'A',
-                img = blocks[:, :, counter],
+            decoded_values[[i]] = self.grubbs_test(
+                pattern = 'A',
+                img_block = image_blocks[:, :, permutation[i]],
                 length = length,
-                frequency = frequency
+                frequency = frequency,
+                alpha = alpha
             )
-            counter += 1
 
-            decode_values[counter] = self.decode_data(
-                key_choice = 'B',
-                img = blocks[:, :, counter],
-                length = length,
-                frequency = frequency
-            )
-            counter += 1
+            if decoded_values[i] == 1:
 
-        return decode_values
+                print(f"Found pattern A in block {permutation[i]}.")
+                decoded_message.append('A')
+
+            elif decoded_values[i] == 0:
+
+                print(f"No pattern A in block {permutation[i]}.")
+
+                decoded_values[i] = self.grubbs_test(
+                    pattern = 'B',
+                    img_block = image_blocks[:, :, permutation[i]],
+                    length = length,
+                    frequency = frequency,
+                    alpha = alpha
+                )
+
+                if decoded_values[i] == 1:
+
+                    print(f"Found pattern B in block {permutation[i]}")
+                    decoded_message.append('B')
+
+                elif decoded_values[i] == 0:
+
+                    print(f"No pattern B in block {permutation[i]}")
+
+        decoded_values = decoded_values.reshape(
+            (int(math.sqrt(decoded_values.shape[0])), 
+            int(math.sqrt(decoded_values.shape[0])))
+        )
+
+        return decoded_values, decoded_message
 
     # 7. Grubbs' test
-    def grubbs_test(decode_values, alpha):
-        return grubbs_values
+    def grubbs_test(self, pattern, img_block, length, frequency, alpha):
 
-    # 8. Extract message (matched pattern)
-    def pattern_matching(grubbs_values):
-        return pattern_output
+        values_check = self.detect_pattern(pattern, img_block, length, frequency)
+        values_grubbs = grubbs.max_test_outliers(values_check, alpha = alpha)
+
+        if len(values_grubbs) == 0:
+            return False
+        elif len(values_grubbs) != 0:
+            return True
+        else:
+            raise AttributeError("Grubbs' test failed. Please try again.")
 
     ### BRIDGE METHODS FOR EMBEDDING ###
     ### BRIDGE METHODS FOR EMBEDDING ###
@@ -347,12 +373,56 @@ class stego_block:
         img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
         img_spatial = np.real(img_spatial)
         return img_spatial
-    
+
+    def implementation_strength(self, message, img_block, psnr_range, length, frequency):
+
+        implementation_limits = (50, 10000)
+
+        l = implementation_limits[0]
+        r = implementation_limits[1]
+
+        counter = 0
+
+        while r >= l:
+            counter += 1
+            if counter >= 15:
+                break
+            mid = l + (r - l) / 2
+
+            implementation_strength = mid
+
+            img_marked = self.embed_data(
+                message = message, 
+                img_channel = img_block, 
+                length = length, 
+                frequency = frequency, 
+                factor = implementation_strength
+            )
+            img_zero = self.embed_data(
+                message = message, 
+                img_channel = img_block, 
+                length = length, 
+                frequency = frequency, 
+                factor = 0
+            )
+
+            psnr_value = msr.peak_signal_noise_ratio(img_zero, img_marked)
+
+            if psnr_value > psnr_range[1]:
+                l = mid
+            elif psnr_value < psnr_range[0]:
+                r = mid
+            else:
+                return implementation_strength, psnr_value
+
+        else:
+            raise AttributeError("Image block not suitable for embedding.")
+
     ### BRIDGE METHODS FOR DECODING ###
     ### BRIDGE METHODS FOR DECODING ###
     ### BRIDGE METHODS FOR DECODING ###
 
-    @staticmethod
+    @staticmethod 
     def mark_extract(img, radius):
 
         step = math.pi / (2 * math.asin(1 / (2*radius)))
@@ -404,16 +474,16 @@ class stego_block:
             counter += 1
         return np.amax(max_corr)
 
-    def mark_corr_array(self, key_choice, img, length, frequency):
+    def detect_pattern(self, pattern, img, length, frequency):
 
         magnitude, phase = self.image_to_fourier(img)
 
-        if key_choice == 'A':
-            mark = self.generate_key_1(length)
-        elif key_choice == 'B':
-            mark = self.generate_key_2(length)
+        if pattern == 'A':
+            mark = self.generate_pattern(length)[0]
+        elif pattern == 'B':
+            mark = self.generate_pattern(length)[1]
         else:
-            raise AttributeError("Please provide 'A' or 'B' as key choice.")
+            raise AttributeError("Please provide 'A' or 'B' as pattern choice.")
 
         radius = stego_block.vector_radius(img, frequency)
 
