@@ -184,7 +184,7 @@ class stego_block:
         # Return image as uint8
         return skimage.img_as_ubyte(img_channel_marked)
 
-    def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency, factor):
+    def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency):
 
         blocks_marked = np.copy(image_blocks)
         
@@ -204,8 +204,10 @@ class stego_block:
                 length = length,
                 frequency = frequency,
                 factor = factor[0]
+                # factor = 15000
             )
-            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {factor[1]}")
+            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {round(factor[1], 3)}")
+            # print(f"Embedding message {message[i]} in block {permutation[i]}.")
 
         return blocks_marked
 
