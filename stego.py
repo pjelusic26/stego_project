@@ -413,12 +413,14 @@ class stego_block:
             if psnr_value > psnr_range[1]:
                 l = mid
             elif psnr_value < psnr_range[0]:
-                r = mid
+                r = mid 
             else:
                 return implementation_strength, psnr_value
 
-        else:
-            raise AttributeError("Image block not suitable for embedding.")
+        # else:
+        print("Error: Unable to find. Set Impact Factor to 1000.")
+        print(psnr_value)
+        return [1000, psnr_value]
 
     ### BRIDGE METHODS FOR DECODING ###
     ### BRIDGE METHODS FOR DECODING ###
