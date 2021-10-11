@@ -378,7 +378,7 @@ class stego_block:
 
     def implementation_strength(self, message, img_block, psnr_range, length, frequency):
 
-        implementation_limits = (50, 10000)
+        implementation_limits = (50, 25000)
 
         l = implementation_limits[0]
         r = implementation_limits[1]
@@ -387,7 +387,7 @@ class stego_block:
 
         while r >= l:
             counter += 1
-            if counter >= 15:
+            if counter >= 25:
                 break
             mid = l + (r - l) / 2
 
@@ -413,12 +413,14 @@ class stego_block:
             if psnr_value > psnr_range[1]:
                 l = mid
             elif psnr_value < psnr_range[0]:
-                r = mid
+                r = mid 
             else:
                 return implementation_strength, psnr_value
 
-        else:
-            raise AttributeError("Image block not suitable for embedding.")
+        # else:
+        print("Error: Unable to find. Set Impact Factor to 1000.")
+        print(psnr_value)
+        return [1000, psnr_value]
 
     ### BRIDGE METHODS FOR DECODING ###
     ### BRIDGE METHODS FOR DECODING ###
