@@ -1,51 +1,36 @@
-from os import stat
-from numpy import float32
+from PIL import Image, ImageCms
+import skimage.metrics as msr
+from matplotlib import pyplot as plt
 import numpy as np
+from pathlib import Path
+
 from stego import stego_block
 
-class seed_key:
+path = Path(__file__).resolve()
+image_path = str(path.parents[1])+'/stego_project/test_set/coated/orig/img_01.tif'
+imgName = '/home/zgebac26/python/stego_project/test_set/coated/orig/img_01_590.tif'
 
-    def __init__(self, seed):
-        self.seed = seed
-        pass
+# Create wmark object with seed 5
+stego_object = stego_block(5, 5, 5)
 
-    def generator(self, length):
+# Read image
+img = stego_block.image_read(image_path)
 
-        np.random.seed(self.seed)
-        key1 = np.random.randint(2, size = (length, 1)).astype(np.float32)
-        key2 = np.random.randint(2, size = (length, 1)).astype(np.float32)
+# Resize image
+img = stego_block.image_resize(img, 590)
 
-        return key1, key2
+# Define center of image
+# quarter = int(img.shape[0] / 4)
+# print(quarter)
 
-    @staticmethod
-    def randomize(total):
+# Define half of image
+# half = int(img.shape[0] / 2)
+# print(half)
 
-        list_ordered = np.arange(16)
-        return np.random.permutation(list_ordered)
-        
+# img_half = img[half:, :, :]
+# print(f"Img Top: {img_half.shape}")
 
-seedTest = seed_key(8)
-
-# key1, key2 = seedTest.generator(5)
-
-# print(key1)
-# print(key2)
-
-# random_list = seed_key.randomize(16)
-# print(random_list)
-# print(random_list[0])
-# print(random_list[0].dtype)
-
-
-
-stego_object = stego_block(seed_pattern = 5, seed_message = 6, seed_permutation = 7)
-
-pattern_a, pattern_b = stego_object.generate_pattern(length = 5)
-print(pattern_a)
-print(pattern_b)
-
-message = stego_object.generate_message(bit_amount = 5)
-print(message)
-
-permutation = stego_object.generate_permutation(block_number = 16)
-print(permutation)
+# Saving image
+imgObject = Image.fromarray(img.astype('uint8'), 'CMYK')
+imgObject.save(imgName)
+print(f"Save merged image {img.shape}")

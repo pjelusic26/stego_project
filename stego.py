@@ -193,7 +193,7 @@ class stego_block:
             factor = self.implementation_strength(
                 message = message[i],
                 img_block = image_blocks[:, :, permutation[i]],
-                psnr_range = (38, 42),
+                psnr_range = (25, 30),
                 length = 200,
                 frequency = 'MEDIUM'
             )
@@ -378,7 +378,7 @@ class stego_block:
 
     def implementation_strength(self, message, img_block, psnr_range, length, frequency):
 
-        implementation_limits = (50, 20000)
+        implementation_limits = (50, 150000)
 
         l = implementation_limits[0]
         r = implementation_limits[1]
