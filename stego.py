@@ -1,6 +1,6 @@
 ### Stego project from scratch ###
 
-from os import stat
+from os import stat 
 import numpy as np
 from PIL import Image
 from scipy import fftpack
@@ -131,7 +131,7 @@ class stego_block:
     def activity_test(img_channel_blocks, activity_threshold):
         return activity_map
 
-    def embed_data(self, message, img_channel, length, frequency, factor):
+    def embed_data(self, message, img_channel, length, mask, frequency, factor):
 
         # Get radius from provided frequency range
         radius = stego_block.vector_radius(img_channel, frequency)
@@ -149,7 +149,7 @@ class stego_block:
 
         # Define the data mask (area where the data will be embedded)
         mark_mask = np.zeros(img_channel.shape)
-        mask_shape = (3, 3)
+        mask_shape = mask
         mask_up = np.zeros(mask_shape)
         mask_down = np.zeros(mask_shape)
 
@@ -157,22 +157,28 @@ class stego_block:
         for ind in range(length):
             x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
             y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
+            # print(f"x1y1: {x1, y1}")
             x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
             y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
+            # print(f"x2y2: {x2, y2}")
 
             # Mirroring the circular-shaped vector
             # Without this, the vector would only be half of a circle
-            for ind_m_x in range(3):
-                for ind_m_y in range(3):
+            for ind_m_x in range(mask[0]):
+                for ind_m_y in range(mask[0]):
                     mask_up[ind_m_x, ind_m_y] = img_channel[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
                     mask_down[ind_m_x, ind_m_y] = img_channel[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
 
             # Placing the mask using the secret key (seed)
             mark_mask[x1, y1] = data_mark[ind] * np.mean(mask_up)
             mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
+            # print(f"x1y1 = {mark_mask[x1, y1]}")
+            # print(f"x2y2 = {mark_mask[x2, y2]}")
 
         # Applying the additive mask, controlled by the implementation strength
         magnitude_m = magnitude + factor*mark_mask
+        # print(f"Magnitude Orig = {magnitude[x1, y1]}")
+        # print(f"Magnitude Marked = {magnitude_m[x1, y1]}")
 
         # Transforming the image back to spatial domain
         img_channel_marked = self.image_to_spatial(magnitude_m, phase)
@@ -182,7 +188,7 @@ class stego_block:
             img_channel_marked = img_channel_marked / np.amax(img_channel_marked)
 
         # Return image as uint8
-        return skimage.img_as_ubyte(img_channel_marked)
+        return skimage.img_as_ubyte(img_channel_marked), magnitude[x1, y1], magnitude_m[x1, y1]
 
     def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency):
 
@@ -427,11 +433,11 @@ class stego_block:
     ### BRIDGE METHODS FOR DECODING ###
 
     @staticmethod 
-    def mark_extract(img, radius):
+    def mark_extract(img, radius, mask = (3, 3)):
 
         step = math.pi / (2 * math.asin(1 / (2*radius)))
         vec = np.zeros((math.ceil(step), 1))
-        mask = np.zeros((3, 3))
+        mask = np.zeros(mask)
 
         for ind in range(math.ceil(step)):
             x1 = int((img.shape[0] / 2) +
