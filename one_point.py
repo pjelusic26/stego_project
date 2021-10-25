@@ -9,17 +9,19 @@ import os
 from pathlib import Path
 
 # Define source folder
-img_path = 'test_images/img-0001.tif'
+img_path = 'test_set/img-0001.tif'
 
 # Define stego object
 stego = stego_block(5, 5, 5)
 
 # Create implementation strength range
-implementation_range = range(0, 20001, 25)
+implementation_range = range(0, 80001, 40)
+# implementation_range = range(0, 26, 25)
 
 # Create empty array
 results = np.zeros((len(implementation_range), 10))
 
+# Read image and extract channel
 img = stego_block.image_read(img_path)
 resized = stego_block.image_resize(img, 512)
 channel = stego_block.extract_channel(resized)
