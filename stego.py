@@ -155,25 +155,27 @@ class stego_block:
 
         # Defining key points on the circular-shaped vector
         for ind in range(length):
-            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
-            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
-            # x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/4)))
-            # y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/4)))
+            # x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
+            # y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
+            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length + math.pi/8)))
+            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length + math.pi/8)))
             # print(f"x1y1: {x1, y1}")
-            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
-            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
+            # x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
+            # y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
+            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi + math.pi/8)))
+            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi + math.pi/8)))
             # print(f"x2y2: {x2, y2}")
 
             # Mirroring the circular-shaped vector
             # Without this, the vector would only be half of a circle
             for ind_m_x in range(mask[0]):
                 for ind_m_y in range(mask[0]):
-                    mask_up[ind_m_x, ind_m_y] = img_channel[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
-                    mask_down[ind_m_x, ind_m_y] = img_channel[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
+                    mask_up[ind_m_x, ind_m_y] = magnitude[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
+                    mask_down[ind_m_x, ind_m_y] = magnitude[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
 
             # Placing the mask using the secret key (seed)
             mark_mask[x1, y1] = data_mark[ind] * np.mean(mask_up)
-            # mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
+            mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
             # print(f"x1y1 = {mark_mask[x1, y1]}")
             # print(f"x2y2 = {mark_mask[x2, y2]}")
 

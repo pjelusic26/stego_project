@@ -9,13 +9,13 @@ import os
 from pathlib import Path
 
 # Define source folder
-img_path = 'test_set/img-0001.tif'
+img_path = 'test_set/img-0002.tif'
 
 # Define stego object
 stego = stego_block(5, 5, 5)
 
 # Create implementation strength range
-implementation_range = range(0, 80001, 40)
+implementation_range = np.arange(0, 1000.1, 2.5)
 # implementation_range = range(0, 26, 25)
 
 # Create empty array
@@ -44,6 +44,11 @@ for i in implementation_range:
     print(i)
 
 df = pd.DataFrame(results)
-df.to_csv('one_point.csv')
+df.to_csv('one_point_pi_8.csv')
+
+# Saving image
+imgObject = Image.fromarray(marked_medium[0].astype('uint8'), 'L')
+imgObject.save('test_set/img_marked_medium.jpg')
+print(f"Save merged image {img.shape}")
 
 print(f"Done!")
