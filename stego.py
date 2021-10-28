@@ -11,6 +11,7 @@ import skimage.transform as trs
 import math
 import cv2
 from outliers import smirnov_grubbs as grubbs
+from skimage.util import dtype
 
 ### Well, not exactly from scratch ###
 # from wmark import WaterMark
@@ -22,7 +23,6 @@ from outliers import smirnov_grubbs as grubbs
 # Decoder does not need to know the order of embedding
 # Decoder only needs to know possible patterns
 # Decoder checks each block for each possible pattern (until the pattern is found)
-
 
 class stego_block:
 
@@ -65,9 +65,9 @@ class stego_block:
         np.random.seed(self.seed_permutation)
         return np.random.permutation(blocks_ordered)
 
-    ### Encoder ###
-    ### Encoder ###
-    ### Encoder ###
+    ### IMAGE PROCESSING ###
+    ### IMAGE PROCESSING ###
+    ### IMAGE PROCESSING ###
 
     @staticmethod
     def image_read(filepath):
@@ -84,6 +84,18 @@ class stego_block:
             # Preserve range in order to keep the same format
             img = trs.resize(img, (dimension, dimension), preserve_range = True)
         return img
+
+    @staticmethod
+    def image_save(img, filename, format, print_statement = 'NO'):
+        img_object = Image.fromarray(img, str(format))
+        img_object.save(str(filename))
+        if print_statement == 'NO':
+            pass
+        elif print_statement == 'YES':
+            print(f"Saved {img.name} image {img.shape}")
+        else:
+            pass
+            raise Warning("Please provide a YES or NO answer for print statement.")
 
     @staticmethod
     def extract_channel(img_orig):
@@ -127,106 +139,6 @@ class stego_block:
 
         return blocks_output
 
-    # TODO
-    def activity_test(img_channel_blocks, activity_threshold):
-        return activity_map
-
-    def embed_data(self, message, img_channel, length, mask, frequency, factor):
-
-        # Get radius from provided frequency range
-        radius = stego_block.vector_radius(img_channel, frequency)
-
-        # Generate mark using the secret key (seed)
-        if message == 'A':
-            data_mark = self.generate_pattern(length)[0]
-        elif message == 'B':
-            data_mark = self.generate_pattern(length)[1]
-        else:
-            raise AttributeError("Unknown message. Encoder is confused.")
-
-        # Transform the input image into the frequency domain
-        magnitude, phase = self.image_to_fourier(img_channel)
-
-        # Define the data mask (area where the data will be embedded)
-        mark_mask = np.zeros(img_channel.shape)
-        mask_shape = mask
-        mask_up = np.zeros(mask_shape)
-        mask_down = np.zeros(mask_shape)
-
-        # Defining key points on the circular-shaped vector
-        for ind in range(length):
-            # x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
-            # y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
-            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length + math.pi/8)))
-            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length + math.pi/8)))
-            # print(f"x1y1: {x1, y1}")
-            # x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
-            # y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
-            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi + math.pi/8)))
-            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi + math.pi/8)))
-            # print(f"x2y2: {x2, y2}")
-
-            # Mirroring the circular-shaped vector
-            # Without this, the vector would only be half of a circle
-            for ind_m_x in range(mask[0]):
-                for ind_m_y in range(mask[0]):
-                    mask_up[ind_m_x, ind_m_y] = magnitude[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
-                    mask_down[ind_m_x, ind_m_y] = magnitude[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
-
-            # Placing the mask using the secret key (seed)
-            mark_mask[x1, y1] = data_mark[ind] * np.mean(mask_up)
-            mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
-            # print(f"x1y1 = {mark_mask[x1, y1]}")
-            # print(f"x2y2 = {mark_mask[x2, y2]}")
-
-        # Applying the additive mask, controlled by the implementation strength
-        magnitude_m = magnitude + factor*mark_mask
-        # print(f"Magnitude Orig = {magnitude[x1, y1]}")
-        # print(f"Magnitude Marked = {magnitude_m[x1, y1]}")
-
-        # Transforming the image back to spatial domain
-        img_channel_marked = self.image_to_spatial(magnitude_m, phase)
-
-        #TODO
-        if np.amax(img_channel) > 1:
-            img_channel_marked = img_channel_marked / np.amax(img_channel_marked)
-
-        # Return image as uint8
-        return skimage.img_as_ubyte(img_channel_marked), magnitude[x1, y1], magnitude_m[x1, y1]
-
-    def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency):
-
-        blocks_marked = np.copy(image_blocks)
-        
-        for i in range(len(message)):
-
-            factor = self.implementation_strength(
-                message = message[i],
-                img_block = image_blocks[:, :, permutation[i]],
-                psnr_range = (25, 30),
-                length = 200,
-                frequency = 'MEDIUM'
-            )
-
-            blocks_marked[:, :, permutation[i]] = self.embed_data(
-                message = message[i],
-                img_channel = image_blocks[:, :, permutation[i]],
-                length = length,
-                frequency = frequency,
-                factor = factor[0]
-                # factor = 15000
-            )
-            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {round(factor[1], 3)}")
-            # print(f"Embedding message {message[i]} in block {permutation[i]}.")
-
-        return blocks_marked
-
-    # TODO
-    # 8. Apply GCR Masking
-    # def gcr_masking(img_marked, gcr_method, color_profile):
-    #    return img_masked
-
-    # 9. Merge blocks
     @staticmethod
     def image_merge_blocks(img_masked, block_number):
 
@@ -253,7 +165,6 @@ class stego_block:
 
         return img_merged
 
-    # 10. Merge marked K channel with original C M Y
     @staticmethod
     def image_merge_channels(img_orig, img_merged):
 
@@ -271,120 +182,13 @@ class stego_block:
         else:
             raise AttributeError("Unknown image format.")
 
-    ### Decoder ###
-    ### Decoder ###
-    ### Decoder ###
+    ### ENCODER ###
+    ### ENCODER ###
+    ### ENCODER ###
 
-    # 1. Read cmyk image
-    # 2. Split image into blocks
-    # 3. Choose K channels
-    # 4. Activity test
-    # 5. Apply Fourier transform
-
-    # 6. Search for watermarks
-    # def detect_pattern_max(self, pattern, img, length, frequency):
-
-    #     decode_values = self.detect_pattern(pattern, img, length, frequency)
-    #     return np.amax(decode_values)
-
-    def decode_data_pattern(self, permutation, image_blocks, length, frequency, alpha):
-
-        decoded_values = np.zeros((image_blocks.shape[-1], 1))
-        decoded_message = []
-        
-        for i in range(image_blocks.shape[-1]):
-
-            decoded_values[[i]] = self.grubbs_test(
-                pattern = 'A',
-                img_block = image_blocks[:, :, permutation[i]],
-                length = length,
-                frequency = frequency,
-                alpha = alpha
-            )
-
-            if decoded_values[i] == 1:
-
-                print(f"Found pattern A in block {permutation[i]}.")
-                decoded_message.append('A')
-
-            elif decoded_values[i] == 0:
-
-                print(f"No pattern A in block {permutation[i]}.")
-
-                decoded_values[i] = self.grubbs_test(
-                    pattern = 'B',
-                    img_block = image_blocks[:, :, permutation[i]],
-                    length = length,
-                    frequency = frequency,
-                    alpha = alpha
-                )
-
-                if decoded_values[i] == 1:
-
-                    print(f"Found pattern B in block {permutation[i]}")
-                    decoded_message.append('B')
-
-                elif decoded_values[i] == 0:
-
-                    print(f"No pattern B in block {permutation[i]}")
-
-        decoded_values = decoded_values.reshape(
-            (int(math.sqrt(decoded_values.shape[0])), 
-            int(math.sqrt(decoded_values.shape[0])))
-        )
-
-        return decoded_values, decoded_message
-
-    # 7. Grubbs' test
-    def grubbs_test(self, pattern, img_block, length, frequency, alpha):
-
-        values_check = self.detect_pattern(pattern, img_block, length, frequency)
-        values_grubbs = grubbs.max_test_outliers(values_check, alpha = alpha)
-
-        if len(values_grubbs) == 0:
-            return False
-        elif len(values_grubbs) != 0:
-            return True
-        else:
-            raise AttributeError("Grubbs' test failed. Please try again.")
-
-    ### BRIDGE METHODS FOR EMBEDDING ###
-    ### BRIDGE METHODS FOR EMBEDDING ###
-    ### BRIDGE METHODS FOR EMBEDDING ###
-
-    @staticmethod
-    def vector_radius(img, frequency):
-
-        if frequency == 'LOW':
-            radius = 1/8 * (img.shape[0])
-        elif frequency == 'MEDIUM':
-            radius = 1/4 * (img.shape[0])
-        elif frequency == 'HIGH':
-            radius = 3/8 * (img.shape[0])
-        else:
-            raise AttributeError("Unknown frequency. Please use LOW, MEDIUM or HIGH")
-        return radius
-        
-    def image_to_fourier(self, img):
-
-        # Transforming image to float
-        skimage.img_as_float64(img)
-        
-        # Transforming image from spatial to frequency domain
-        # Fourier Transform is complex, creating both magnitude and phase
-        fft2 = fftpack.fft2(img)
-        magnitude = fftpack.fftshift(np.absolute(fft2))
-        phase = np.angle(fft2)
-
-        # Return magnitude and phase as separate objects
-        return magnitude, phase
-
-    def image_to_spatial(self, magnitude, phase):
-
-        # Using the magnitude and phase to return image to spatial domain
-        img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
-        img_spatial = np.real(img_spatial)
-        return img_spatial
+    # TODO
+    def activity_test(img_channel_blocks, activity_threshold):
+        return activity_map
 
     def implementation_strength(self, message, img_block, psnr_range, length, frequency):
 
@@ -432,9 +236,159 @@ class stego_block:
         print(psnr_value)
         return [1000, psnr_value]
 
-    ### BRIDGE METHODS FOR DECODING ###
-    ### BRIDGE METHODS FOR DECODING ###
-    ### BRIDGE METHODS FOR DECODING ###
+    def embed_data(self, message, img_channel, length, mask, frequency, factor):
+
+        # Get radius from provided frequency range
+        radius = stego_block.vector_radius(img_channel, frequency)
+
+        # Generate mark using the secret key (seed)
+        if message == 'A':
+            data_mark = self.generate_pattern(length)[0]
+        elif message == 'B':
+            data_mark = self.generate_pattern(length)[1]
+        else:
+            raise AttributeError("Unknown message. Encoder is confused.")
+
+        # Transform the input image into the frequency domain
+        magnitude, phase = self.image_to_fourier(img_channel)
+
+        # Define the data mask (area where the data will be embedded)
+        mark_mask = np.zeros(img_channel.shape)
+        mask_shape = mask
+        mask_up = np.zeros(mask_shape)
+        mask_down = np.zeros(mask_shape)
+
+        # Defining key points on the circular-shaped vector
+        for ind in range(length):
+            # x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
+            # y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
+            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length + math.pi/8)))
+            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length + math.pi/8)))
+            
+            # x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
+            # y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
+            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi + math.pi/8)))
+            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi + math.pi/8)))
+
+            # Mirroring the circular-shaped vector
+            # Without this, the vector would only be half of a circle
+            for ind_m_x in range(mask[0]):
+                for ind_m_y in range(mask[0]):
+                    mask_up[ind_m_x, ind_m_y] = magnitude[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
+                    mask_down[ind_m_x, ind_m_y] = magnitude[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
+
+            # Placing the mask using the secret key (seed)
+            mark_mask[x1, y1] = data_mark[ind] * np.mean(mask_up)
+            mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
+
+        # Applying the additive mask, controlled by the implementation strength
+        magnitude_m = magnitude + factor*mark_mask
+
+        # Saving image
+        # magnitude_log = stego_block.frequency_domain_log(magnitude)
+        # stego_block.image_save(magnitude_log, 'test_set/magnitude_log.jpg', 'L')
+
+        # Saving image
+        # magnitude_m_log = stego_block.frequency_domain_log(magnitude_m)
+        # stego_block.image_save(magnitude_m_log, 'test_set/magnitude_m_log.jpg', 'L')
+
+        # Transforming the image back to spatial domain
+        img_channel_marked = self.image_to_spatial(magnitude_m, phase)
+
+        #TODO
+        if np.amax(img_channel) > 1:
+            img_channel_marked = img_channel_marked / np.amax(img_channel_marked)
+
+        # Return image as uint8
+        return skimage.img_as_ubyte(img_channel_marked), magnitude[x1, y1], magnitude_m[x1, y1]
+
+    def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency):
+
+        blocks_marked = np.copy(image_blocks)
+        
+        for i in range(len(message)):
+
+            factor = self.implementation_strength(
+                message = message[i],
+                img_block = image_blocks[:, :, permutation[i]],
+                psnr_range = (25, 30),
+                length = 200,
+                frequency = 'MEDIUM'
+            )
+
+            blocks_marked[:, :, permutation[i]] = self.embed_data(
+                message = message[i],
+                img_channel = image_blocks[:, :, permutation[i]],
+                length = length,
+                frequency = frequency,
+                factor = factor[0]
+                # factor = 15000
+            )
+            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {round(factor[1], 3)}")
+            # print(f"Embedding message {message[i]} in block {permutation[i]}.")
+
+        return blocks_marked
+
+    # TODO
+    def gcr_masking(img_marked, gcr_method, color_profile):
+        return img_masked
+
+    ### FREQUENCY DOMAIN ###
+    ### FREQUENCY DOMAIN ###
+    ### FREQUENCY DOMAIN ###
+
+    @staticmethod
+    def vector_radius(img, frequency):
+
+        if frequency == 'LOW':
+            radius = 1/8 * (img.shape[0])
+        elif frequency == 'MEDIUM':
+            radius = 1/4 * (img.shape[0])
+        elif frequency == 'HIGH':
+            radius = 3/8 * (img.shape[0])
+        else:
+            raise AttributeError("Unknown frequency. Please use LOW, MEDIUM or HIGH")
+        return radius
+        
+    @staticmethod
+    def image_to_fourier(img):
+
+        # Transforming image to float
+        skimage.img_as_float64(img)
+        
+        # Transforming image from spatial to frequency domain
+        # Fourier Transform is complex, creating both magnitude and phase
+        fft2 = fftpack.fft2(img)
+        magnitude = fftpack.fftshift(np.absolute(fft2))
+        phase = np.angle(fft2)
+
+        # Return magnitude and phase as separate objects
+        return magnitude, phase
+
+    @staticmethod
+    def frequency_domain_log(magnitude):
+
+        # Log of original magnitude
+        m_log = 255 / np.log(1 + np.max(magnitude))
+        magnitude_log = m_log * (np.log(magnitude + 1))
+        magnitude_log = np.array(magnitude_log, dtype = np.uint8)
+
+        return magnitude_log
+
+    @staticmethod
+    def image_to_spatial(magnitude, phase):
+
+        # Using the magnitude and phase to return image to spatial domain
+        img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
+        img_spatial = np.real(img_spatial)
+        return img_spatial
+
+    ### VECTORS ###
+    ### VECTORS ###
+    ### VECTORS ###
+    # TODO
+    # Should these be static methods?
+    # Or are they a part of the decoder?
 
     @staticmethod 
     def mark_extract(img, radius, mask = (3, 3)):
@@ -488,6 +442,29 @@ class stego_block:
             counter += 1
         return np.amax(max_corr)
 
+    ### DECODER ###
+    ### DECODER ###
+    ### DECODER ###
+
+    # 1. Read cmyk image
+    # 2. Split image into blocks
+    # 3. Choose K channels
+    # 4. Activity test
+    # 5. Apply Fourier transform
+    # 6. Search for watermarks
+
+    def grubbs_test(self, pattern, img_block, length, frequency, alpha):
+
+        values_check = self.detect_pattern(pattern, img_block, length, frequency)
+        values_grubbs = grubbs.max_test_outliers(values_check, alpha = alpha)
+
+        if len(values_grubbs) == 0:
+            return False
+        elif len(values_grubbs) != 0:
+            return True
+        else:
+            raise AttributeError("Grubbs' test failed. Please try again.")
+
     def detect_pattern(self, pattern, img, length, frequency):
 
         magnitude, phase = self.image_to_fourier(img)
@@ -511,3 +488,51 @@ class stego_block:
             counter += 1
 
         return value_array
+
+    def decode_data_pattern(self, permutation, image_blocks, length, frequency, alpha):
+
+        decoded_values = np.zeros((image_blocks.shape[-1], 1))
+        decoded_message = []
+        
+        for i in range(image_blocks.shape[-1]):
+
+            decoded_values[[i]] = self.grubbs_test(
+                pattern = 'A',
+                img_block = image_blocks[:, :, permutation[i]],
+                length = length,
+                frequency = frequency,
+                alpha = alpha
+            )
+
+            if decoded_values[i] == 1:
+
+                print(f"Found pattern A in block {permutation[i]}.")
+                decoded_message.append('A')
+
+            elif decoded_values[i] == 0:
+
+                print(f"No pattern A in block {permutation[i]}.")
+
+                decoded_values[i] = self.grubbs_test(
+                    pattern = 'B',
+                    img_block = image_blocks[:, :, permutation[i]],
+                    length = length,
+                    frequency = frequency,
+                    alpha = alpha
+                )
+
+                if decoded_values[i] == 1:
+
+                    print(f"Found pattern B in block {permutation[i]}")
+                    decoded_message.append('B')
+
+                elif decoded_values[i] == 0:
+
+                    print(f"No pattern B in block {permutation[i]}")
+
+        decoded_values = decoded_values.reshape(
+            (int(math.sqrt(decoded_values.shape[0])), 
+            int(math.sqrt(decoded_values.shape[0])))
+        )
+
+        return decoded_values, decoded_message

@@ -9,13 +9,13 @@ import os
 from pathlib import Path
 
 # Define source folder
-img_path = 'test_set/img-0002.tif'
+img_path = 'test_images/img-0548.tif'
 
 # Define stego object
 stego = stego_block(5, 5, 5)
 
 # Create implementation strength range
-implementation_range = np.arange(0, 1000.1, 2.5)
+implementation_range = np.arange(1000, 1000.1, 1000)
 # implementation_range = range(0, 26, 25)
 
 # Create empty array
@@ -26,29 +26,31 @@ img = stego_block.image_read(img_path)
 resized = stego_block.image_resize(img, 512)
 channel = stego_block.extract_channel(resized)
 
+stego.image_save(channel.astype('uint8'), 'images/spatial_orig.jpg', 'L')
+
 counter = 0
 
 for i in implementation_range:
-    marked_low = stego.embed_data('A', channel, 1, (1, 1), 'LOW', i)
-    psnr_low = msr.peak_signal_noise_ratio(channel, marked_low[0], data_range = 255)
+    # marked_low = stego.embed_data('A', channel, 1, (1, 1), 'LOW', i)
+    # psnr_low = msr.peak_signal_noise_ratio(channel, marked_low[0], data_range = 255)
 
     marked_medium = stego.embed_data('A', channel, 1, (1, 1), 'MEDIUM', i)
     psnr_medium = msr.peak_signal_noise_ratio(channel, marked_medium[0], data_range = 255)
 
-    marked_high = stego.embed_data('A', channel, 1, (1, 1), 'HIGH', i)
-    psnr_high = msr.peak_signal_noise_ratio(channel, marked_high[0], data_range = 255)
+    # marked_high = stego.embed_data('A', channel, 1, (1, 1), 'HIGH', i)
+    # psnr_high = msr.peak_signal_noise_ratio(channel, marked_high[0], data_range = 255)
 
-    results[counter, :] = [i, marked_low[1], marked_low[2], psnr_low, marked_medium[1], marked_medium[2], psnr_medium, marked_high[1], marked_high[2], psnr_high]
+    # results[counter, :] = [i, marked_low[1], marked_low[2], psnr_low, marked_medium[1], marked_medium[2], psnr_medium, marked_high[1], marked_high[2], psnr_high]
 
     counter += 1
     print(i)
 
 df = pd.DataFrame(results)
-df.to_csv('one_point_pi_8.csv')
+# df.to_csv('one_point_pi_2.csv')
 
 # Saving image
-imgObject = Image.fromarray(marked_medium[0].astype('uint8'), 'L')
-imgObject.save('test_set/img_marked_medium.jpg')
-print(f"Save merged image {img.shape}")
+# imgObject = Image.fromarray(marked_medium[0].astype('uint8'), 'L')
+# imgObject.save('test_set/img_marked_pi_2.jpg')
+# print(f"Save merged image {img.shape}")
 
 print(f"Done!")

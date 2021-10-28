@@ -20,3 +20,8 @@ print('Done!')
 # imgObject = Image.fromarray(img.astype('uint8'), 'CMYK')
 # imgObject.save(imgName)
 # print(f"Save merged image {img.shape}")
+
+import cv2
+img = cv2.imread('rsi_vjezba_3_slika.jpg', cv2.IMREAD_GRAYSCALE)
+# img = cv2.IMREAD_GRAYSCALE('rsi_vjezba_3_slika.jpg')
+cv2.imwrite('rsi_vjezba_3_greyscale.jpg', img)
