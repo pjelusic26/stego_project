@@ -24,50 +24,11 @@ from skimage.util import dtype
 # Decoder only needs to know possible patterns
 # Decoder checks each block for each possible pattern (until the pattern is found)
 
-class stego_block:
+class image_processing:
 
-    def __init__(self, seed_pattern, seed_message, seed_permutation):
-        self.seed_pattern = seed_pattern
-        self.seed_message = seed_message
-        self.seed_permutation = seed_permutation
-        pass
-
-    def generate_pattern(self, length):
-
-        # Using the self object, generating a seed
-        np.random.seed(self.seed_pattern)
-        pattern_a = np.random.randint(2, size = (length, 1)).astype(np.float32)
-        pattern_b = np.random.randint(2, size = (length, 1)).astype(np.float32)
-
-        return pattern_a, pattern_b
-
-    def generate_message(self, bit_amount):
-
-        np.random.seed(self.seed_message)
-        message = np.random.randint(2, size = (bit_amount, 1))
-
-        letter_message = []
-        for i in range(bit_amount):
-
-            if message[i] == 0:
-                letter_message.append('A')
-            elif message[i] == 1:
-                letter_message.append('B')
-            else:
-                raise AttributeError("Wrong message input.")
-
-        return letter_message
-
-    def generate_permutation(self, block_number):
-
-        blocks_ordered = np.arange(block_number)
-
-        np.random.seed(self.seed_permutation)
-        return np.random.permutation(blocks_ordered)
-
-    ### IMAGE PROCESSING ###
-    ### IMAGE PROCESSING ###
-    ### IMAGE PROCESSING ###
+    def __init__(self, block_number, image_dimension):
+        self.block_number = block_number
+        self.image_dimension = image_dimension
 
     @staticmethod
     def image_read(filepath):
@@ -75,27 +36,6 @@ class stego_block:
         # Read image as Numpy array
         img_orig = np.array(Image.open(filepath))
         return img_orig
-
-    @staticmethod
-    def image_resize(img, dimension):
-
-        # Resize image to a dimension of choice
-        if not img.shape == (dimension, dimension):
-            # Preserve range in order to keep the same format
-            img = trs.resize(img, (dimension, dimension), preserve_range = True)
-        return img
-
-    @staticmethod
-    def image_save(img, filename, format, print_statement = 'NO'):
-        img_object = Image.fromarray(img, str(format))
-        img_object.save(str(filename))
-        if print_statement == 'NO':
-            pass
-        elif print_statement == 'YES':
-            print(f"Saved {img.name} image {img.shape}")
-        else:
-            pass
-            raise Warning("Please provide a YES or NO answer for print statement.")
 
     @staticmethod
     def extract_channel(img_orig):
@@ -114,56 +54,16 @@ class stego_block:
             raise AttributeError("Please provide grayscale, RGB or CMYK image.")
 
     @staticmethod
-    def image_to_blocks(img_channel, block_number):
-        
-        # Defining block dimensions
-        block_height = int(img_channel.shape[0] / block_number)
-        block_width = int(img_channel.shape[1] / block_number)
-        block_depth = int(block_number ** 2)
-
-        # Creating empty array to be filled with image blocks
-        blocks_output = np.zeros((int(block_height), int(block_width), int(block_depth)))
-
-        # Split the image over the first axis
-        divide_a = np.split(img_channel, block_number, axis = 0)
-
-        counter = 0
-
-        # Split image blocks over the other axis
-        for i in range(block_number):
-            for j in range(block_number):
-
-                divide_b = np.split(divide_a[i], block_number, axis = 1)
-                blocks_output[:, :, counter] = divide_b[j]
-                counter += 1
-
-        return blocks_output
-
-    @staticmethod
-    def image_merge_blocks(img_masked, block_number):
-
-        block_height = int(img_masked.shape[0])
-        block_width = int(img_masked.shape[1])
-        # block_depth = int(block_number ** 2)
-        image_height = int(block_height * block_number)
-        image_width = int(block_width * block_number)
-
-        img_merged = np.zeros((image_height, image_width))
-
-        depth_counter  = 0
-        x = 0
-        y = 0
-
-        while y < image_height:
-            while x < image_width:
-                img_merged[y : (y + block_height), 
-                            x : (x + block_width)] = img_masked[:, :, depth_counter]
-                x += block_width
-                depth_counter += 1
-            y += block_height
-            x = 0
-
-        return img_merged
+    def image_save(img, filename, format, print_statement = 'NO'):
+        img_object = Image.fromarray(img, str(format))
+        img_object.save(str(filename))
+        if print_statement == 'NO':
+            pass
+        elif print_statement == 'YES':
+            print(f"Saved {img.name} image {img.shape}")
+        else:
+            pass
+            raise Warning("Please provide a YES or NO answer for print statement.")
 
     @staticmethod
     def image_merge_channels(img_orig, img_merged):
@@ -182,169 +82,137 @@ class stego_block:
         else:
             raise AttributeError("Unknown image format.")
 
-    ### ENCODER ###
-    ### ENCODER ###
-    ### ENCODER ###
+    def image_resize(self, img):
 
-    # TODO
-    def activity_test(img_channel_blocks, activity_threshold):
-        return activity_map
+        # Resize image to a dimension of choice
+        if not img.shape == (self.image_dimension, self.image_dimension):
+            # Preserve range in order to keep the same format
+            img = trs.resize(img, (self.image_dimension, self.image_dimension), preserve_range = True)
+        return img
 
-    def implementation_strength(self, message, img_block, psnr_range, length, frequency):
+    def image_to_blocks(self, img_channel):
+       
+        # Defining block dimensions
+        block_height = int(img_channel.shape[0] / self.block_number)
+        block_width = int(img_channel.shape[1] / self.block_number)
+        block_depth = int(self.block_number ** 2)
 
-        implementation_limits = (50, 150000)
+        # Creating empty array to be filled with image blocks
+        blocks_output = np.zeros((int(block_height), int(block_width), int(block_depth)))
 
-        l = implementation_limits[0]
-        r = implementation_limits[1]
+        # Split the image over the first axis
+        divide_a = np.split(img_channel, self.block_number, axis = 0)
 
         counter = 0
 
-        while r >= l:
-            counter += 1
-            if counter >= 25:
-                break
-            mid = l + (r - l) / 2
+        # Split image blocks over the other axis
+        for i in range(self.block_number):
+            for j in range(self.block_number):
 
-            implementation_strength = mid
+                divide_b = np.split(divide_a[i], self.block_number, axis = 1)
+                blocks_output[:, :, counter] = divide_b[j]
+                counter += 1
 
-            img_marked = self.embed_data(
-                message = message, 
-                img_channel = img_block, 
-                length = length, 
-                frequency = frequency, 
-                factor = implementation_strength
-            )
-            img_zero = self.embed_data(
-                message = message, 
-                img_channel = img_block, 
-                length = length, 
-                frequency = frequency, 
-                factor = 0
-            )
+        return blocks_output
 
-            psnr_value = msr.peak_signal_noise_ratio(img_zero, img_marked)
+    def image_merge_blocks(self, img_masked):
 
-            if psnr_value > psnr_range[1]:
-                l = mid
-            elif psnr_value < psnr_range[0]:
-                r = mid 
+        block_height = int(img_masked.shape[0])
+        block_width = int(img_masked.shape[1])
+        image_height = int(block_height * self.block_number)
+        image_width = int(block_width * self.block_number)
+
+        img_merged = np.zeros((image_height, image_width))
+
+        depth_counter  = 0
+        x = 0
+        y = 0
+
+        while y < image_height:
+            while x < image_width:
+                img_merged[y : (y + block_height), 
+                            x : (x + block_width)] = img_masked[:, :, depth_counter]
+                x += block_width
+                depth_counter += 1
+            y += block_height
+            x = 0
+
+        return img_merged
+
+
+class stego_block:
+
+    # block_number = image_processing.block_number
+
+    def __init__(self, seed_pattern, seed_message, seed_permutation, block_number, bit_amount, length, frequency):
+        self.seed_pattern = seed_pattern
+        self.seed_message = seed_message
+        self.seed_permutation = seed_permutation
+        self.block_number = block_number
+        self.bit_amount = bit_amount
+        self.length = length
+        self.frequency = frequency
+        # pass
+
+    def generate_pattern(self):
+
+        # Using the self object, generating a seed
+        np.random.seed(self.seed_pattern)
+        pattern_a = np.random.randint(2, size = (self.length, 1)).astype(np.float32)
+        pattern_b = np.random.randint(2, size = (self.length, 1)).astype(np.float32)
+
+        return pattern_a, pattern_b
+
+    def generate_message(self):
+
+        np.random.seed(self.seed_message)
+        message = np.random.randint(2, size = (self.bit_amount, 1))
+
+        letter_message = []
+        for i in range(self.bit_amount):
+
+            if message[i] == 0:
+                letter_message.append('A')
+            elif message[i] == 1:
+                letter_message.append('B')
             else:
-                return implementation_strength, psnr_value
+                raise AttributeError("Wrong message input.")
 
-        # else:
-        print("Error: Unable to find. Set Impact Factor to 1000.")
-        print(psnr_value)
-        return [1000, psnr_value]
+        return letter_message
 
-    def embed_data(self, message, img_channel, length, mask, frequency, factor):
+    def generate_permutation(self):
 
-        # Get radius from provided frequency range
-        radius = stego_block.vector_radius(img_channel, frequency)
+        blocks_ordered = np.arange(self.block_number)
 
-        # Generate mark using the secret key (seed)
-        if message == 'A':
-            data_mark = self.generate_pattern(length)[0]
-        elif message == 'B':
-            data_mark = self.generate_pattern(length)[1]
-        else:
-            raise AttributeError("Unknown message. Encoder is confused.")
+        np.random.seed(self.seed_permutation)
+        return np.random.permutation(blocks_ordered)
 
-        # Transform the input image into the frequency domain
-        magnitude, phase = self.image_to_fourier(img_channel)
-
-        # Define the data mask (area where the data will be embedded)
-        mark_mask = np.zeros(img_channel.shape)
-        mask_shape = mask
-        mask_up = np.zeros(mask_shape)
-        mask_down = np.zeros(mask_shape)
-
-        # Defining key points on the circular-shaped vector
-        for ind in range(length):
-            # x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length)))
-            # y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length)))
-            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length + math.pi/8)))
-            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length + math.pi/8)))
-            
-            # x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi)))
-            # y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi)))
-            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/length+math.pi + math.pi/8)))
-            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/length+math.pi + math.pi/8)))
-
-            # Mirroring the circular-shaped vector
-            # Without this, the vector would only be half of a circle
-            for ind_m_x in range(mask[0]):
-                for ind_m_y in range(mask[0]):
-                    mask_up[ind_m_x, ind_m_y] = magnitude[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
-                    mask_down[ind_m_x, ind_m_y] = magnitude[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
-
-            # Placing the mask using the secret key (seed)
-            mark_mask[x1, y1] = data_mark[ind] * np.mean(mask_up)
-            mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
-
-        # Applying the additive mask, controlled by the implementation strength
-        magnitude_m = magnitude + factor*mark_mask
-
-        # Saving image
-        # magnitude_log = stego_block.frequency_domain_log(magnitude)
-        # stego_block.image_save(magnitude_log, 'test_set/magnitude_log.jpg', 'L')
-
-        # Saving image
-        # magnitude_m_log = stego_block.frequency_domain_log(magnitude_m)
-        # stego_block.image_save(magnitude_m_log, 'test_set/magnitude_m_log.jpg', 'L')
-
-        # Transforming the image back to spatial domain
-        img_channel_marked = self.image_to_spatial(magnitude_m, phase)
-
-        #TODO
-        if np.amax(img_channel) > 1:
-            img_channel_marked = img_channel_marked / np.amax(img_channel_marked)
-
-        # Return image as uint8
-        return skimage.img_as_ubyte(img_channel_marked), magnitude[x1, y1], magnitude_m[x1, y1]
-
-    def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency):
-
-        blocks_marked = np.copy(image_blocks)
-        
-        for i in range(len(message)):
-
-            factor = self.implementation_strength(
-                message = message[i],
-                img_block = image_blocks[:, :, permutation[i]],
-                psnr_range = (25, 30),
-                length = 200,
-                frequency = 'MEDIUM'
-            )
-
-            blocks_marked[:, :, permutation[i]] = self.embed_data(
-                message = message[i],
-                img_channel = image_blocks[:, :, permutation[i]],
-                length = length,
-                frequency = frequency,
-                factor = factor[0]
-                # factor = 15000
-            )
-            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {round(factor[1], 3)}")
-            # print(f"Embedding message {message[i]} in block {permutation[i]}.")
-
-        return blocks_marked
-
-    # TODO
-    def gcr_masking(img_marked, gcr_method, color_profile):
-        return img_masked
-
-    ### FREQUENCY DOMAIN ###
-    ### FREQUENCY DOMAIN ###
-    ### FREQUENCY DOMAIN ###
+    ### FOURIER ###
+    ### FOURIER ###
+    ### FOURIER ###
 
     @staticmethod
-    def vector_radius(img, frequency):
+    def frequency_domain_log(magnitude):
+        # Log of original magnitude
+        m_log = 255 / np.log(1 + np.max(magnitude))
+        magnitude_log = m_log * (np.log(magnitude + 1))
+        magnitude_log = np.array(magnitude_log, dtype = np.uint8)
+        return magnitude_log
 
-        if frequency == 'LOW':
+    @staticmethod
+    def image_to_spatial(magnitude, phase):
+        # Using the magnitude and phase to return image to spatial domain
+        img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
+        img_spatial = np.real(img_spatial)
+        return img_spatial
+
+    def vector_radius(self, img):
+
+        if self.frequency == 'LOW':
             radius = 1/8 * (img.shape[0])
-        elif frequency == 'MEDIUM':
+        elif self.frequency == 'MEDIUM':
             radius = 1/4 * (img.shape[0])
-        elif frequency == 'HIGH':
+        elif self.frequency == 'HIGH':
             radius = 3/8 * (img.shape[0])
         else:
             raise AttributeError("Unknown frequency. Please use LOW, MEDIUM or HIGH")
@@ -364,24 +232,174 @@ class stego_block:
 
         # Return magnitude and phase as separate objects
         return magnitude, phase
+    
+    ### ENCODER ###
+    ### ENCODER ###
+    ### ENCODER ###
 
-    @staticmethod
-    def frequency_domain_log(magnitude):
+    # TODO
+    def activity_test(img_channel_blocks, activity_threshold):
+        return activity_map
 
-        # Log of original magnitude
-        m_log = 255 / np.log(1 + np.max(magnitude))
-        magnitude_log = m_log * (np.log(magnitude + 1))
-        magnitude_log = np.array(magnitude_log, dtype = np.uint8)
+    def implementation_strength(self, message, img_block, psnr_range, mask = (3, 3)):
 
-        return magnitude_log
+        implementation_limits = (50, 150000)
 
-    @staticmethod
-    def image_to_spatial(magnitude, phase):
+        l = implementation_limits[0]
+        r = implementation_limits[1]
 
-        # Using the magnitude and phase to return image to spatial domain
-        img_spatial = fftpack.ifft2(np.multiply(fftpack.ifftshift(magnitude), np.exp(1j * phase)))
-        img_spatial = np.real(img_spatial)
-        return img_spatial
+        counter = 0
+
+        while r >= l:
+            counter += 1
+            if counter >= 25:
+                break
+            mid = l + (r - l) / 2
+
+            implementation_strength = mid
+
+            img_marked = self.embed_data(
+                message = message, 
+                img_channel = img_block, 
+                # length = self.length, 
+                # frequency = self.frequency,
+                mask = mask,
+                factor = implementation_strength
+            )
+            img_zero = self.embed_data(
+                message = message, 
+                img_channel = img_block, 
+                # length = self.length, 
+                # frequency = self.frequency,
+                mask = mask,
+                factor = 0
+            )
+
+            psnr_value = msr.peak_signal_noise_ratio(img_zero, img_marked)
+
+            if psnr_value > psnr_range[1]:
+                l = mid
+            elif psnr_value < psnr_range[0]:
+                r = mid 
+            else:
+                return implementation_strength, psnr_value
+
+        # else:
+        print("Error: Unable to find. Set Impact Factor to 1000.")
+        print(psnr_value)
+        return [1000, psnr_value]
+
+    def embed_data(self, message, img_channel, factor, mask = (3, 3)):
+
+        # Get radius from provided frequency range
+        radius = self.vector_radius(img_channel)
+
+        # Generate mark using the secret key (seed)
+        if message == 'A':
+            data_mark = self.generate_pattern()[0]
+        elif message == 'B':
+            data_mark = self.generate_pattern()[1]
+        else:
+            raise AttributeError("Unknown message. Encoder is confused.")
+
+        # Transform the input image into the frequency domain
+        magnitude, phase = self.image_to_fourier(img_channel)
+
+        # Define the data mask (area where the data will be embedded)
+        mark_mask = np.zeros(img_channel.shape)
+        mask_shape = mask
+        mask_up = np.zeros(mask_shape)
+        mask_down = np.zeros(mask_shape)
+
+        print(self.length)
+
+        # Defining key points on the circular-shaped vector
+        for ind in range(self.length):
+            # x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/self.length)))
+            # y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/self.length)))
+            x1 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/self.length + math.pi/8)))
+            y1 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/self.length + math.pi/8)))
+            
+            # x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/self.length+math.pi)))
+            # y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/self.length+math.pi)))
+            x2 = int((img_channel.shape[0]/2) + np.around(radius*math.cos(ind*math.pi/self.length+math.pi + math.pi/8)))
+            y2 = int((img_channel.shape[0]/2) + np.around(radius*math.sin(ind*math.pi/self.length+math.pi + math.pi/8)))
+
+            # Mirroring the circular-shaped vector
+            # Without this, the vector would only be half of a circle
+            for ind_m_x in range(mask[0]):
+                for ind_m_y in range(mask[0]):
+                    mask_up[ind_m_x, ind_m_y] = magnitude[(x1 - 1 + ind_m_x),  (y1 - 1 + ind_m_y)]
+                    mask_down[ind_m_x, ind_m_y] = magnitude[(x2 - 1 + ind_m_x), (y2 - 1 + ind_m_y)]
+
+            # Placing the mask using the secret key (seed)
+            mark_mask[x1, y1] = data_mark[ind] * np.mean(mask_up)
+            mark_mask[x2, y2] = data_mark[ind] * np.mean(mask_down)
+
+        # Applying the additive mask, controlled by the implementation strength
+        magnitude_m = magnitude + factor*mark_mask
+
+        # Saving image
+        magnitude_log = stego_block.frequency_domain_log(magnitude)
+        image_processing.image_save(magnitude_log, 'test_set/magnitude_log.jpg', 'L')
+
+        # Saving image
+        magnitude_m_log = stego_block.frequency_domain_log(magnitude_m)
+        image_processing.image_save(magnitude_m_log, 'test_set/magnitude_m_log.jpg', 'L')
+
+        # Transforming the image back to spatial domain
+        img_channel_marked = self.image_to_spatial(magnitude_m, phase)
+
+        #TODO
+        if np.amax(img_channel) > 1:
+            img_channel_marked = img_channel_marked / np.amax(img_channel_marked)
+
+        #TODO Check if this is OK
+        # if np.amin(img_channel) > -1:
+        #     img_channel_marked = img_channel_marked / np.amin(img_channel_marked)
+
+        # Return image as uint8
+        # return skimage.img_as_ubyte(img_channel_marked), magnitude[x1, y1], magnitude_m[x1, y1]
+        # return skimage.img_as_float64(img_channel_marked)
+        return skimage.img_as_ubyte(img_channel_marked)
+
+    def embed_pattern_to_blocks(self, image_blocks, factor):
+
+        blocks_marked = np.copy(image_blocks)
+
+        message = self.generate_message()
+        permutation = self.generate_permutation()
+        
+        for i in range(len(message)):
+
+            # factor = self.implementation_strength(
+            #     message = message[i],
+            #     img_block = image_blocks[:, :, permutation[i]],
+            #     psnr_range = (25, 30)
+            #     # length = 200,
+            #     # frequency = 'MEDIUM'
+            # )
+
+            blocks_marked[:, :, permutation[i]] = self.embed_data(
+                message = message[i],
+                img_channel = image_blocks[:, :, permutation[i]],
+                # length = length,
+                # frequency = frequency,
+                # factor = factor[0]
+                factor = 15000
+            )
+
+            img_name = f"image_marked_{i}.jpg"
+            image_processing.image_save(blocks_marked[:, :, permutation[i]], img_name, 'L')
+
+            # print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor[0]}, PSNR = {round(factor[1], 3)}")
+            print(f"Embedding message {message[i]} in block {permutation[i]}, factor = {factor}...")
+
+        return blocks_marked
+
+    # TODO
+    def gcr_masking(img_marked, gcr_method, color_profile):
+        return img_masked
 
     ### VECTORS ###
     ### VECTORS ###
@@ -446,16 +464,9 @@ class stego_block:
     ### DECODER ###
     ### DECODER ###
 
-    # 1. Read cmyk image
-    # 2. Split image into blocks
-    # 3. Choose K channels
-    # 4. Activity test
-    # 5. Apply Fourier transform
-    # 6. Search for watermarks
+    def grubbs_test(self, pattern, img_block, alpha):
 
-    def grubbs_test(self, pattern, img_block, length, frequency, alpha):
-
-        values_check = self.detect_pattern(pattern, img_block, length, frequency)
+        values_check = self.detect_pattern(pattern, img_block)
         values_grubbs = grubbs.max_test_outliers(values_check, alpha = alpha)
 
         if len(values_grubbs) == 0:
@@ -465,18 +476,18 @@ class stego_block:
         else:
             raise AttributeError("Grubbs' test failed. Please try again.")
 
-    def detect_pattern(self, pattern, img, length, frequency):
+    def detect_pattern(self, pattern, img):
 
         magnitude, phase = self.image_to_fourier(img)
 
         if pattern == 'A':
-            mark = self.generate_pattern(length)[0]
+            mark = self.generate_pattern()[0]
         elif pattern == 'B':
-            mark = self.generate_pattern(length)[1]
+            mark = self.generate_pattern()[1]
         else:
             raise AttributeError("Please provide 'A' or 'B' as pattern choice.")
 
-        radius = stego_block.vector_radius(img, frequency)
+        radius = self.vector_radius(img)
 
         value_array = np.zeros(64)
         counter = 0
@@ -489,18 +500,20 @@ class stego_block:
 
         return value_array
 
-    def decode_data_pattern(self, permutation, image_blocks, length, frequency, alpha):
+    def decode_data_pattern(self, image_blocks, alpha):
 
         decoded_values = np.zeros((image_blocks.shape[-1], 1))
         decoded_message = []
+
+        permutation = self.generate_permutation()
         
         for i in range(image_blocks.shape[-1]):
 
             decoded_values[[i]] = self.grubbs_test(
                 pattern = 'A',
                 img_block = image_blocks[:, :, permutation[i]],
-                length = length,
-                frequency = frequency,
+                # length = length,
+                # frequency = frequency,
                 alpha = alpha
             )
 
@@ -516,8 +529,8 @@ class stego_block:
                 decoded_values[i] = self.grubbs_test(
                     pattern = 'B',
                     img_block = image_blocks[:, :, permutation[i]],
-                    length = length,
-                    frequency = frequency,
+                    # length = length,
+                    # frequency = frequency,
                     alpha = alpha
                 )
 
