@@ -1,3 +1,8 @@
+import time
+start = time.time()
+
+print(f"Started script...")
+
 from stego import stego_block
 
 import numpy as np
@@ -8,49 +13,86 @@ import glob
 import os
 from pathlib import Path
 
-# Define source folder
-img_path = 'test_images/img-0548.tif'
+# Define source folder for image and color profile
+img_path = 'test_images/img-0205.tif'
+profile_path = 'profiles/ISOcoated_v2_eci.icc'
 
-# Define stego object
+# Instantiate stego object
 stego = stego_block(5, 5, 5)
 
 # Create implementation strength range
-implementation_range = np.arange(1000, 1000.1, 1000)
-# implementation_range = range(0, 26, 25)
+implementation_range = np.arange(0, 30.1, 0.5)
+# implementation_range = np.arange(5, 5.1, 1)
 
 # Create empty array
-results = np.zeros((len(implementation_range), 10))
+results = np.zeros((len(implementation_range), 11))
 
-# Read image and extract channel
+# Read, resize image and extract channel
 img = stego_block.image_read(img_path)
 resized = stego_block.image_resize(img, 512)
 channel = stego_block.extract_channel(resized)
 
-stego.image_save(channel.astype('uint8'), 'images/spatial_orig.jpg', 'L')
+# Save original channel and image
+# stego.image_save(resized.astype('uint8'), 'images/spatial_orig.jpg', 'CMYK')
+# stego.image_save(channel.astype('uint8'), 'images/spatial_orig_k.jpg', 'L')
 
 counter = 0
 
 for i in implementation_range:
-    # marked_low = stego.embed_data('A', channel, 1, (1, 1), 'LOW', i)
-    # psnr_low = msr.peak_signal_noise_ratio(channel, marked_low[0], data_range = 255)
+    # Zero-marking
+    marked_zero = np.copy(resized)
+    marked_zero[:, :, -1] = stego.embed_data('A', marked_zero[:, :, -1], 200, (3, 3), 'M', 0)[0]
+    # Real embedding
+    marked_l = stego.embed_data('A', channel, 200, (3, 3), 'L', i)
+    marked_lm = stego.embed_data('A', channel, 200, (3, 3), 'LM', i)
+    marked_m = stego.embed_data('A', channel, 200, (3, 3), 'M', i)
+    marked_mh = stego.embed_data('A', channel, 200, (3, 3), 'MH', i)
+    marked_h = stego.embed_data('A', channel, 200, (3, 3), 'H', i)
+    # Merge image channels
+    merged_l = stego.image_merge_channels(resized, marked_l[0])
+    merged_lm = stego.image_merge_channels(resized, marked_lm[0])
+    merged_m = stego.image_merge_channels(resized, marked_m[0])
+    merged_mh = stego.image_merge_channels(resized, marked_mh[0])
+    merged_h = stego.image_merge_channels(resized, marked_h[0])
+    # Apply GCR masking
+    masked_l = stego.gcr_masking(resized, merged_l, profile_path)
+    masked_lm = stego.gcr_masking(resized, merged_lm, profile_path)
+    masked_m = stego.gcr_masking(resized, merged_m, profile_path)
+    masked_mh = stego.gcr_masking(resized, merged_mh, profile_path)
+    masked_h = stego.gcr_masking(resized, merged_h, profile_path)
+    # Calculate PSNR values
+    psnr_l = stego.lab_quality(marked_zero, merged_l, profile_path, metric = 'SSIM')
+    psnr_masked_l = stego.lab_quality(marked_zero, masked_l, profile_path, metric = 'SSIM')
+    psnr_lm = stego.lab_quality(marked_zero, merged_lm, profile_path, metric = 'SSIM')
+    psnr_masked_lm = stego.lab_quality(marked_zero, masked_lm, profile_path, metric = 'SSIM')
+    psnr_m = stego.lab_quality(marked_zero, merged_m, profile_path, metric = 'SSIM')
+    psnr_masked_m = stego.lab_quality(marked_zero, masked_m, profile_path, metric = 'SSIM')
+    psnr_mh = stego.lab_quality(marked_zero, merged_mh, profile_path, metric = 'SSIM')
+    psnr_masked_mh = stego.lab_quality(marked_zero, masked_mh, profile_path, metric = 'SSIM')
+    psnr_h = stego.lab_quality(marked_zero, merged_h, profile_path, metric = 'SSIM')
+    psnr_masked_h = stego.lab_quality(marked_zero, masked_h, profile_path, metric = 'SSIM')
 
-    marked_medium = stego.embed_data('A', channel, 1, (1, 1), 'MEDIUM', i)
-    psnr_medium = msr.peak_signal_noise_ratio(channel, marked_medium[0], data_range = 255)
-
-    # marked_high = stego.embed_data('A', channel, 1, (1, 1), 'HIGH', i)
-    # psnr_high = msr.peak_signal_noise_ratio(channel, marked_high[0], data_range = 255)
-
-    # results[counter, :] = [i, marked_low[1], marked_low[2], psnr_low, marked_medium[1], marked_medium[2], psnr_medium, marked_high[1], marked_high[2], psnr_high]
+    results[counter, :] = [
+        i, 
+        psnr_l, psnr_masked_l, 
+        psnr_lm, psnr_masked_lm, 
+        psnr_m, psnr_masked_m, 
+        psnr_mh, psnr_masked_mh,
+        psnr_h, psnr_masked_h
+    ]
 
     counter += 1
     print(i)
 
+
 df = pd.DataFrame(results)
-# df.to_csv('one_point_pi_2.csv')
+df.to_csv('five_frequencies_0_ssim.csv')
 
 # Saving image
-# imgObject = Image.fromarray(marked_medium[0].astype('uint8'), 'L')
-# imgObject.save('test_set/img_marked_pi_2.jpg')
-# print(f"Save merged image {img.shape}")
+stego.image_save(merged_l, 'images/spatial_marked_005.jpg', 'CMYK')
+stego.image_save(masked_l, 'images/spatial_masked_005.jpg', 'CMYK')
 
-print(f"Done!")
+end = time.time()
+print(
+    f"Done with script in {(end - start) / 60} minutes."
+)

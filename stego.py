@@ -12,9 +12,18 @@ import math
 import cv2
 from outliers import smirnov_grubbs as grubbs
 from skimage.util import dtype
+import ctypes
+from pathlib import Path
+
 
 ### Well, not exactly from scratch ###
-# from wmark import WaterMark
+
+### GCR ###
+### GCR ###
+### GCR ###
+import wmgcr
+import gcrpywrap as gw
+
 
 # TODO
 # Seed generator for permutation of blocks
@@ -285,12 +294,14 @@ class stego_block:
         magnitude_m = magnitude + factor*mark_mask
 
         # Saving image
+        # magnitude_name = f"images/magnitude_{frequency}.jpg"
         # magnitude_log = stego_block.frequency_domain_log(magnitude)
-        # stego_block.image_save(magnitude_log, 'test_set/magnitude_log.jpg', 'L')
+        # stego_block.image_save(magnitude_log, magnitude_name, 'L')
 
         # Saving image
+        # magnitude_m_name = f"images/magnitude_m_{frequency}.jpg"
         # magnitude_m_log = stego_block.frequency_domain_log(magnitude_m)
-        # stego_block.image_save(magnitude_m_log, 'test_set/magnitude_m_log.jpg', 'L')
+        # stego_block.image_save(magnitude_m_log, magnitude_m_name, 'L')
 
         # Transforming the image back to spatial domain
         img_channel_marked = self.image_to_spatial(magnitude_m, phase)
@@ -301,6 +312,10 @@ class stego_block:
 
         # Return image as uint8
         return skimage.img_as_ubyte(img_channel_marked), magnitude[x1, y1], magnitude_m[x1, y1]
+
+
+
+        return img_marked
 
     def embed_pattern_to_blocks(self, message, permutation, image_blocks, length, frequency):
 
@@ -329,9 +344,48 @@ class stego_block:
 
         return blocks_marked
 
-    # TODO
-    def gcr_masking(img_marked, gcr_method, color_profile):
-        return img_masked
+    def lab_quality(self, img_zero, img_processed, profile_path, metric = 'PSNR'):
+
+        # cfAtoB object from gcrpywrap
+        path = Path(profile_path)
+        cf_a_to_b = gw.cform(path.resolve().as_posix(), 'AtoB1')
+
+        # Reshape arrays for afAtoB
+        img_zero = np.reshape(img_zero, (512 * 512, 4))
+        img_processed = np.reshape(img_processed, (512 * 512, 4))
+
+        # Transform arrays for afAtoB
+        img_zero = img_zero.astype(ctypes.c_double) / 2.55
+        img_processed = img_processed.astype(ctypes.c_double) / 2.55
+
+        # CMYK --> LAB
+        lab_zero = cf_a_to_b.apply(img_zero)
+        lab_marked = cf_a_to_b.apply(img_processed)
+
+        # Normalize A and B
+        lab_zero[:, 1:3] = (lab_zero[:, 1:3] + 128) / 255
+        lab_marked[:, 1:3] = (lab_marked[:, 1:3] + 128) / 255
+
+        # Normalize L
+        lab_zero[:, 0] = lab_zero[:, 0] / 100
+        lab_marked[:, 0] = lab_marked[:, 0] / 100
+
+        cf_a_to_b.delete()
+
+        if metric == 'PSNR':
+            return msr.peak_signal_noise_ratio(lab_zero, lab_marked, data_range = 1)
+        elif metric == 'SSIM':
+            return msr.structural_similarity(lab_zero, lab_marked, multichannel = True)
+        else:
+            raise AttributeError('Please provide PSNR or SSIM metric.')
+
+    def gcr_masking(self, img_orig, img_marked, profile_path, gcr_method = 2):
+
+        gcr_mask = wmgcr.wmgcr(profile_path)
+        img_masked = gcr_mask.transformImage(img_orig, img_marked, gcr_method, 1, 0, 100)
+        gcr_mask.delete()
+
+        return np.asarray(img_masked)
 
     ### FREQUENCY DOMAIN ###
     ### FREQUENCY DOMAIN ###
@@ -340,12 +394,16 @@ class stego_block:
     @staticmethod
     def vector_radius(img, frequency):
 
-        if frequency == 'LOW':
-            radius = 1/8 * (img.shape[0])
-        elif frequency == 'MEDIUM':
-            radius = 1/4 * (img.shape[0])
-        elif frequency == 'HIGH':
-            radius = 3/8 * (img.shape[0])
+        if frequency == 'L':
+            radius = 0.05 * (img.shape[0])
+        elif frequency == 'LM':
+            radius = 0.15 * (img.shape[0])
+        elif frequency == 'M':
+            radius = 0.25 * (img.shape[0])
+        elif frequency == 'MH':
+            radius = 0.35 * (img.shape[0])
+        elif frequency == 'H':
+            radius = 0.45 * (img.shape[0])
         else:
             raise AttributeError("Unknown frequency. Please use LOW, MEDIUM or HIGH")
         return radius
